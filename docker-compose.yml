@@ -1,0 +1,6 @@
+services:
+  musicdata.api:
+    image: ${DOCKER_REGISTRY-}musicdataapi
+    build:
+      context: .
+      dockerfile: MusicDataApi/Dockerfile

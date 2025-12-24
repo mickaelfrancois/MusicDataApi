@@ -1,0 +1,30 @@
+@HostAddress = https://localhost:7200
+@ApiKey = 73407c42-ba4e-44da-8131-1b8cf0b1e6f1
+
+@artistName = Michael Jackson
+@albumName = Don't go in the forest
+@title = Captain Goat
+@duration = 2520
+
+GET {{HostAddress}}/v1/artists?artistName={{artistName}}
+Accept: application/json
+X-Api-Key: {{ApiKey}}
+
+###
+
+GET {{HostAddress}}/v1/albums?albumname={{albumName}}&artistname={{artistName}}
+Accept: application/json
+X-Api-Key: {{ApiKey}}
+
+###
+
+
+GET {{HostAddress}}/v1/lyrics?title={{title}}&artistname={{artistName}}&albumname={{albumName}}&duration={{duration}}
+Accept: application/json
+X-Api-Key: {{ApiKey}}
+
+###
+
+
+GET {{HostAddress}}/health/
+Accept: application/json

@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="docker-compose.dcproj">
+    <Build />
+  </Project>
+  <Project Path="MusicData.Application/MusicData.Application.csproj" Id="0bdef8ca-08b0-4231-9479-af8b262d0eb3" />
+  <Project Path="MusicData.Domain/MusicData.Domain.csproj" Id="15be506a-d8dc-43b1-8b00-82fb212dc475" />
+  <Project Path="MusicData.Infrastructure/MusicData.Infrastructure.csproj" Id="96c50ef3-9ebc-4cf4-ac01-b2a95dc0749b" />
+  <Project Path="MusicData.Shared/MusicData.Shared.csproj" Id="3249d32b-494e-4b82-b221-73b43a7b112b" />
+  <Project Path="MusicDataApi/MusicData.Api.csproj" />
+</Solution>

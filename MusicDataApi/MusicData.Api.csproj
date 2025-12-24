@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>69adeb6f-e78c-4cc2-96f8-72ea4d35ca49</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MusicData.Application\MusicData.Application.csproj" />
+    <ProjectReference Include="..\MusicData.Domain\MusicData.Domain.csproj" />
+    <ProjectReference Include="..\MusicData.Infrastructure\MusicData.Infrastructure.csproj" />
+    <ProjectReference Include="..\MusicData.Shared\MusicData.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
