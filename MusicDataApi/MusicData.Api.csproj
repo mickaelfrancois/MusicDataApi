@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>69adeb6f-e78c-4cc2-96f8-72ea4d35ca49</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+	<ContainerImageName>vladdfpc/MusicDataApi</ContainerImageName>
+	<ContainerImageTag>1.0.0</ContainerImageTag>
     <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
   </PropertyGroup>
 

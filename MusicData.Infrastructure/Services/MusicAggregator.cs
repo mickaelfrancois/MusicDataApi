@@ -70,7 +70,6 @@ public class MusicAggregator : IMusicAggregator
             Twitter = FirstNonEmpty(artists, a => a.Twitter),
             Website = FirstNonEmpty(artists, a => a.Website),
             Youtube = FirstNonEmpty(artists, a => a.Youtube),
-            BornYear = FirstGreaterThanZero(artists, a => a.BornYear),
             EndYear = FirstGreaterThanZero(artists, a => a.EndYear),
             Disbanded = artists.Any(a => a.Disbanded),
             Wikipedia = FirstNonEmpty(artists, a => a.Wikipedia),

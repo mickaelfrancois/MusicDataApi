@@ -75,7 +75,6 @@ public static class ArtistMapper
             Twitter = dto.Twitter,
             Website = dto.Website,
             Youtube = dto.Youtube,
-            BornYear = dto.BornYear,
             LastFM = dto.LastFM,
         };
 
