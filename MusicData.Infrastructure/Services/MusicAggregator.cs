@@ -26,24 +26,155 @@ public class MusicAggregator : IMusicAggregator
                 t =>
                 {
                     string key = t.Name.ToLowerInvariant();
-                    if (_rateLimits.ServiceLimits.TryGetValue(key, out (int MaxRequests, int PerSeconds) cfg))
+                    if (_rateLimits.ServiceLimits.TryGetValue(key, out (int MaxRequests, int PerMilliSeconds) cfg))
 
-                        return new TokenBucketRateLimiter(cfg.MaxRequests, TimeSpan.FromSeconds(cfg.PerSeconds));
+                        return new TokenBucketRateLimiter(cfg.MaxRequests, TimeSpan.FromMilliseconds(cfg.PerMilliSeconds));
 
-                    return new TokenBucketRateLimiter(1, TimeSpan.FromSeconds(1));
+                    return new TokenBucketRateLimiter(1, TimeSpan.FromMilliseconds(1));
                 });
     }
 
 
-    public async Task<ArtistDto?> GetArtistAsync(string name, CancellationToken cancellationToken)
+    public async Task<ArtistDto?> GetArtistByNameAsync(string name, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        List<ArtistDto> artists = (await GetArtistsAsync(name, cancellationToken)).ToList();
+        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
+        string? musicBrainzId = await musicBrainz.FindArtistAsync(name, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(musicBrainzId))
+            return null;
+
+        List<ArtistDto> artists = (await GetArtistsAsync(musicBrainzId, cancellationToken)).ToList();
         if (artists.Count == 0)
             return null;
 
+        return BuildMergedArtist(artists);
+    }
+
+
+    public async Task<ArtistDto?> GetArtistByMusicBrainzIdAsync(string musicBrainzId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(musicBrainzId))
+            return null;
+
+        List<ArtistDto> artists = (await GetArtistsAsync(musicBrainzId, cancellationToken)).ToList();
+        if (artists.Count == 0)
+            return null;
+
+        return BuildMergedArtist(artists);
+    }
+
+
+    private async Task<IEnumerable<ArtistDto>> GetArtistsAsync(string musicBrainzId, CancellationToken cancellationToken)
+    {
+        Task<ArtistDto?>[] tasks = _services.Select(service => SafeGetArtistAsync(service, musicBrainzId, cancellationToken)).ToArray();
+        ArtistDto?[] results = await Task.WhenAll(tasks);
+
+        return results.Where(artist => artist is not null)!;
+    }
+
+
+    public async Task<AlbumDto?> GetAlbumByNameAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(albumName))
+            return null;
+
+        List<AlbumDto> albums = (await GetAlbumsAsync(albumName, artistMusicBrainzId, cancellationToken)).ToList();
+        if (albums.Count == 0)
+            return null;
+
+        AlbumDto mergedAlbums = BuildMergedAlbum(albums);
+        mergedAlbums.MusicBrainzArtistID = artistMusicBrainzId;
+
+        return mergedAlbums;
+    }
+
+
+    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
+            return null;
+
+        List<AlbumDto> albums = (await GetAlbumsAsync(albumMusicBrainzId, cancellationToken)).ToList();
+        if (albums.Count == 0)
+            return null;
+
+        AlbumDto mergedAlbums = BuildMergedAlbum(albums);
+        mergedAlbums.MusicBrainzArtistID = artistMusicBrainzId;
+
+        return mergedAlbums;
+    }
+
+
+    private async Task<IEnumerable<AlbumDto>> GetAlbumsAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken)
+    {
+        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
+        MusicBrainzReleaseInfo? releaseInfo = await musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
+
+        if (releaseInfo is null)
+            return [];
+
+        Task<AlbumDto?>[] tasks = _services
+            .Select(s => SafeGetAlbumAsync(s, releaseInfo.ReleaseId, releaseInfo.ReleaseGroupId, cancellationToken))
+            .ToArray();
+
+        AlbumDto?[] results = await Task.WhenAll(tasks);
+
+        return results.Where(r => r is not null)!;
+    }
+
+
+    private async Task<IEnumerable<AlbumDto>> GetAlbumsAsync(string musicBrainzId, CancellationToken cancellationToken)
+    {
+        Task<AlbumDto?>[] tasks = _services
+            .Select(s => SafeGetAlbumAsync(s, musicBrainzId, relaseGroupMusicBrainzId: null, cancellationToken))
+            .ToArray();
+
+        AlbumDto?[] results = await Task.WhenAll(tasks);
+
+        return results.Where(r => r is not null)!;
+    }
+
+
+    private async Task<ArtistDto?> SafeGetArtistAsync(IMusicService service, string musicBrainzId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
+                await limiter.WaitForAvailabilityAsync();
+
+            return await service.GetArtistAsync(musicBrainzId, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+
+    private async Task<AlbumDto?> SafeGetAlbumAsync(IMusicService service, string? releaseMusicBrainzId, string? relaseGroupMusicBrainzId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(releaseMusicBrainzId))
+            return null;
+
+        try
+        {
+            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
+                await limiter.WaitForAvailabilityAsync();
+
+            return await service.GetAlbumAsync(releaseMusicBrainzId, relaseGroupMusicBrainzId, cancellationToken);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+
+    private static ArtistDto BuildMergedArtist(List<ArtistDto> artists)
+    {
         ArtistDto merged = new()
         {
             Name = FirstNonEmpty(artists, a => a.Name),
@@ -80,24 +211,17 @@ public class MusicAggregator : IMusicAggregator
             TikTok = FirstNonEmpty(artists, a => a.TikTok),
 
             Members = artists.SelectMany(a => a.Members ?? Enumerable.Empty<MemberDto>())
-                                     .GroupBy(m => m.Name)
-                                     .Select(g => g.First())
-                                     .ToList()
+                           .GroupBy(m => m.Name)
+                           .Select(g => g.First())
+                           .ToList()
         };
 
         return merged;
     }
 
 
-    public async Task<AlbumDto?> GetAlbumAsync(string albumName, string artistName, CancellationToken cancellationToken)
+    private static AlbumDto BuildMergedAlbum(List<AlbumDto> albums)
     {
-        if (string.IsNullOrEmpty(albumName))
-            return null;
-
-        List<AlbumDto> albums = (await GetAlbumsAsync(albumName, artistName, cancellationToken)).ToList();
-        if (albums.Count == 0)
-            return null;
-
         AlbumDto merged = new()
         {
             Origin = "Aggregated",
@@ -148,84 +272,6 @@ public class MusicAggregator : IMusicAggregator
         return merged;
     }
 
-
-    private async Task<IEnumerable<ArtistDto>> GetArtistsAsync(string name, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return [];
-
-        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
-        string? musicBrainzId = await musicBrainz.FindArtistAsync(name, cancellationToken);
-
-        if (string.IsNullOrEmpty(musicBrainzId))
-            return [];
-
-        Task<ArtistDto?>[] tasks = _services.Select(s => SafeGetArtistAsync(s, musicBrainzId, cancellationToken)).ToArray();
-        ArtistDto?[] results = await Task.WhenAll(tasks);
-
-        return results.Where(r => r is not null)!;
-    }
-
-
-    private async Task<IEnumerable<AlbumDto>> GetAlbumsAsync(string albumName, string artistName, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(albumName))
-            return [];
-
-        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
-        string? artistMusicBrainzId = await musicBrainz.FindArtistAsync(artistName, cancellationToken);
-
-        if (string.IsNullOrEmpty(artistMusicBrainzId))
-            return [];
-
-        MusicBrainzReleaseInfo? releaseInfo = await musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
-
-        if (releaseInfo is null)
-            return [];
-
-        Task<AlbumDto?>[] tasks = _services
-            .Select(s => SafeGetAlbumAsync(s, releaseInfo.ReleaseId, releaseInfo.ReleaseGroupId, cancellationToken))
-            .ToArray();
-
-        AlbumDto?[] results = await Task.WhenAll(tasks);
-
-        return results.Where(r => r is not null)!;
-    }
-
-
-    private async Task<ArtistDto?> SafeGetArtistAsync(IMusicService service, string musicBrainzId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
-                await limiter.WaitForAvailabilityAsync();
-
-            return await service.GetArtistAsync(musicBrainzId, cancellationToken);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-
-    private async Task<AlbumDto?> SafeGetAlbumAsync(IMusicService service, string? releaseMusicBrainzId, string? relaseGroupMusicBrainzId, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(releaseMusicBrainzId))
-            return null;
-
-        try
-        {
-            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
-                await limiter.WaitForAvailabilityAsync();
-
-            return await service.GetAlbumAsync(releaseMusicBrainzId, relaseGroupMusicBrainzId, cancellationToken);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
 
     private static DateTime? FirstNonNull<T>(IEnumerable<T> items, Func<T, DateTime?> selector) =>
         items.Select(selector).FirstOrDefault(v => v is not null) ?? null;

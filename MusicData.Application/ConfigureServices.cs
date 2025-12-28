@@ -10,7 +10,9 @@ public static class ConfigureServices
     public static IServiceCollection AddFeatures(this IServiceCollection services)
     {
         services.AddScoped<IGetArtistByName, GetArtistByName>();
+        services.AddScoped<IGetArtistByMusicBrainzId, GetArtistByMusicBrainzId>();
         services.AddScoped<IGetAlbumByName, GetAlbumByName>();
+        services.AddScoped<IGetAlbumByMusicBrainzId, GetAlbumByMusicBrainzId>();
         services.AddScoped<IGetLyrics, GetLyrics>();
 
         return services;

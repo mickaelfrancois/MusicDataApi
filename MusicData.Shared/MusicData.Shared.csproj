@@ -10,4 +10,8 @@
     <ProjectReference Include="..\MusicData.Domain\MusicData.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Responses\" />
+  </ItemGroup>
+
 </Project>

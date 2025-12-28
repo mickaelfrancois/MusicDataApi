@@ -6,6 +6,10 @@ public class AlbumDto
 
     public string Name { get; set; } = string.Empty;
 
+    public string MusicBrainzArtistID { get; set; } = string.Empty;
+
+    public string MusicBrainzID { get; set; } = string.Empty;
+
     public string? Artist { get; set; }
 
     public string? Biography { get; set; }
@@ -18,8 +22,6 @@ public class AlbumDto
 
     public string? Year { get; set; }
 
-    public string? MusicBrainzID { get; set; }
-
     public string? ReleaseGroupMusicBrainzID { get; set; }
 
     public string? AudioDbID { get; set; }
@@ -29,8 +31,6 @@ public class AlbumDto
     public string? ReleaseFormat { get; set; }
 
     public string? Sales { get; set; }
-
-    public string? MusicBrainzArtistID { get; set; }
 
     public string? AllMusicID { get; set; }
 

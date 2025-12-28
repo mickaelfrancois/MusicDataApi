@@ -39,22 +39,30 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
             if (!response.IsSuccessStatusCode)
+            {
+                logger.LogDebug("LastFm response with {StatusCode}", response.StatusCode);
                 return null;
+            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LastFmRootArtist? root = JsonSerializer.Deserialize<LastFmRootArtist>(json, jsonOptions);
             if (root == null || root.Artist == null)
+            {
+                logger.LogDebug("No artist result found");
                 return null;
+            }
 
+            logger.LogDebug("Artist found: {Artist}", root.Artist.Name);
             artist = LastFmMapper.Map(root.Artist);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            logger.LogDebug(ex, "Operation canceled");
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "LastFMService.GetArtistAsync: {Message}", ex.Message);
+            logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
             return null;
         }
         finally
@@ -88,22 +96,30 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
             if (!response.IsSuccessStatusCode)
+            {
+                logger.LogDebug("LastFm response with {StatusCode}", response.StatusCode);
                 return null;
+            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LastFmRootAlbum? root = JsonSerializer.Deserialize<LastFmRootAlbum>(json, jsonOptions);
             if (root == null || root.Album == null)
+            {
+                logger.LogDebug("No album result found");
                 return null;
+            }
 
+            logger.LogDebug("Album found: {Album}", root.Album.Name);
             album = LastFmMapper.Map(root.Album);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            logger.LogDebug(ex, "Operation canceled");
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "LastFMService.GetAlbumAsync: {Message}", ex.Message);
+            logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
             return null;
         }
         finally
@@ -114,7 +130,6 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
 
         return album;
     }
-
 }
 
 

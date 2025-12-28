@@ -1,23 +1,36 @@
 @HostAddress = https://localhost:7200
 @ApiKey = 73407c42-ba4e-44da-8131-1b8cf0b1e6f1
 
-@artistName = Michael Jackson
-@albumName = Don't go in the forest
+@artistMbid = a8d77515-f7b7-4d71-9646-8446a3b2a341
+@albumMbid = 98cfdc56-7acf-4ecb-8b42-71c5b1c7421b
+@artistName = Sortilège
+@albumName = Apocalypso
 @title = Captain Goat
 @duration = 2520
 
-GET {{HostAddress}}/v1/artists?artistName={{artistName}}
+GET {{HostAddress}}/v1/artists/bymbid/{{artistMbid}}
 Accept: application/json
 X-Api-Key: {{ApiKey}}
 
 ###
 
-GET {{HostAddress}}/v1/albums?albumname={{albumName}}&artistname={{artistName}}
+GET {{HostAddress}}/v1/artists/byname/{{artistName}}
 Accept: application/json
 X-Api-Key: {{ApiKey}}
 
 ###
 
+GET {{HostAddress}}/v1/albums/bymbid/{{artistMbid}}/{{albumMbid}}
+Accept: application/json
+X-Api-Key: {{ApiKey}}
+
+###
+
+GET {{HostAddress}}/v1/albums/byname/{{artistName}}/{{albumName}}
+Accept: application/json
+X-Api-Key: {{ApiKey}}
+
+###
 
 GET {{HostAddress}}/v1/lyrics?title={{title}}&artistname={{artistName}}&albumname={{albumName}}&duration={{duration}}
 Accept: application/json

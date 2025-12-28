@@ -13,7 +13,7 @@ internal sealed class ArtistRepository : IArtistRepository
     {
         _collection = database.GetCollection<ArtistEntity>(CollectionName);
         _collection.EnsureIndex(x => x.Name, unique: true);
-        _collection.EnsureIndex(x => x.MusicBrainzID, unique: false);
+        _collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
 
 
@@ -22,7 +22,7 @@ internal sealed class ArtistRepository : IArtistRepository
         ArtistEntity? existing = null;
 
         if (!string.IsNullOrWhiteSpace(artist.MusicBrainzID))
-            existing = _collection.FindOne(c => c.MusicBrainzID.Equals(artist.MusicBrainzID, StringComparison.InvariantCultureIgnoreCase));
+            existing = _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(artist.MusicBrainzID, StringComparison.InvariantCultureIgnoreCase));
 
         existing ??= _collection.FindOne(c => c.Name.Equals(artist.Name, StringComparison.InvariantCultureIgnoreCase));
 
@@ -49,7 +49,7 @@ internal sealed class ArtistRepository : IArtistRepository
 
     public ArtistEntity? GetByMusicBrainzID(string musicBrainzID)
     {
-        return _collection.FindOne(c => c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
+        return _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
     }
 
 

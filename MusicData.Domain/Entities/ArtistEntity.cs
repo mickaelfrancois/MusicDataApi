@@ -10,6 +10,8 @@ public class ArtistEntity
 
     public string Name { get; set; } = string.Empty;
 
+    public string MusicBrainzID { get; set; } = string.Empty;
+
     public string? Biography { get; set; }
 
     public string? BiographyFR { get; set; }
@@ -49,8 +51,6 @@ public class ArtistEntity
     public string? PictureUrl { get; set; }
 
     public string? CountryCode { get; set; }
-
-    public string? MusicBrainzID { get; set; }
 
     public string? AudioDbID { get; set; }
 

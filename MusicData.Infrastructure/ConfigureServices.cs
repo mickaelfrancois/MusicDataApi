@@ -12,6 +12,7 @@ using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Repositories;
 using MusicData.Infrastructure.Security;
 using MusicData.Infrastructure.Services;
+using MusicData.Infrastructure.Services.CoverArt;
 using MusicData.Infrastructure.Services.Fanart;
 using MusicData.Infrastructure.Services.LastFm;
 using MusicData.Infrastructure.Services.LrcLib;
@@ -47,6 +48,7 @@ public static class ConfigureServices
         services.Configure<LastFmSettings>(configuration.GetSection("Services:LastFM"));
         services.Configure<MusicBrainzSettings>(configuration.GetSection("Services:MusicBrainz"));
         services.Configure<FanartSettings>(configuration.GetSection("Services:Fanart"));
+        services.Configure<CoverArtSettings>(configuration.GetSection("Services:CoverArt"));
         services.Configure<LyricsOvhSettings>(configuration.GetSection("Services:LyricsOvh"));
         services.Configure<LrcLibSettings>(configuration.GetSection("Services:LrcLib"));
 
@@ -99,6 +101,21 @@ public static class ConfigureServices
             };
         });
 
+        services.AddHttpClient<IMusicService, CoverArtService>("covertart", (sp, client) =>
+        {
+            CoverArtSettings settings = sp.GetRequiredService<IOptions<CoverArtSettings>>().Value;
+            client.BaseAddress = new Uri(settings.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
+        })
+        .ConfigurePrimaryHttpMessageHandler(() =>
+        {
+            return new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+        });
+
         services.AddHttpClient<ILyricsService, LyricsOvhService>("lyricsOvh", (sp, client) =>
         {
             LyricsOvhSettings settings = sp.GetRequiredService<IOptions<LyricsOvhSettings>>().Value;
@@ -129,18 +146,19 @@ public static class ConfigureServices
             };
         });
 
-        services.AddScoped<IMusicAggregator, MusicAggregator>();
-        services.AddScoped<ILyricsAggregator, LyricsAggregator>();
+        services.AddSingleton<IMusicAggregator, MusicAggregator>();
+        services.AddSingleton<ILyricsAggregator, LyricsAggregator>();
 
-        RateLimitOptions rl = new();
-        rl.ServiceLimits["musicbrainzservice"] = (MaxRequests: 1, PerSeconds: 1);
-        rl.ServiceLimits["lastfmservice"] = (MaxRequests: 4, PerSeconds: 1);
-        rl.ServiceLimits["fanartservice"] = (MaxRequests: 10, PerSeconds: 1);
-        rl.ServiceLimits["lyricsovhservice"] = (MaxRequests: 10, PerSeconds: 1);
-        rl.ServiceLimits["lrclibservice"] = (MaxRequests: 10, PerSeconds: 1);
+        RateLimitOptions rateLimitOptions = new();
+        rateLimitOptions.ServiceLimits["musicbrainzservice"] = (MaxRequests: 1, PerMilliSeconds: 1200);
+        rateLimitOptions.ServiceLimits["lastfmservice"] = (MaxRequests: 4, PerMilliSeconds: 1000);
+        rateLimitOptions.ServiceLimits["fanartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
+        rateLimitOptions.ServiceLimits["lyricsovhservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
+        rateLimitOptions.ServiceLimits["lrclibservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
+        rateLimitOptions.ServiceLimits["covertart"] = (MaxRequests: 10, PerMilliSeconds: 1000);
         services.Configure<RateLimitOptions>(o =>
         {
-            o.ServiceLimits = rl.ServiceLimits;
+            o.ServiceLimits = rateLimitOptions.ServiceLimits;
         });
 
         return services;
@@ -232,14 +250,12 @@ public static class ConfigureServices
                                   ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
                                   ?? "unknown";
 
-                return RateLimitPartition.GetTokenBucketLimiter(clientIp, _ => new TokenBucketRateLimiterOptions
+                return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
                 {
-                    TokenLimit = requestsPerMinute,
-                    TokensPerPeriod = requestsPerMinute,
-                    ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                    PermitLimit = requestsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    QueueLimit = 0,
-                    AutoReplenishment = true
+                    QueueLimit = 0
                 });
             });
 

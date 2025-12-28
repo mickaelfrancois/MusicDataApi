@@ -37,23 +37,32 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
             if (!response.IsSuccessStatusCode)
+            {
+                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
                 return null;
+            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
             FanartRoot? root = JsonSerializer.Deserialize<FanartRoot>(json, jsonOptions);
             if (root == null)
+            {
+                logger.LogDebug("Artist '{MusicBrainzId}' not found", musicBrainzId);
                 return null;
+            }
+
+            logger.LogDebug("Found Artist '{MusicBrainzId}'", musicBrainzId);
 
             artist = FanartMapper.MapArtist(root);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
             return null;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "FanartService.GetArtistAsync: {Message}", ex.Message);
+            logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
             return null;
         }
         finally
@@ -87,18 +96,27 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
             if (!response.IsSuccessStatusCode)
+            {
+                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
                 return null;
+            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
             FanartRoot? root = JsonSerializer.Deserialize<FanartRoot>(json, jsonOptions);
             if (root == null)
+            {
+                logger.LogDebug("Album '{ReleaseGroupMusicBrainzId}' not found", releaseGroupMusicBrainzId);
                 return null;
+            }
+
+            logger.LogDebug("Found Album '{ReleaseGroupMusicBrainzId}'", releaseGroupMusicBrainzId);
 
             album = FanartMapper.MapAlbum(root);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
+            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
             return null;
         }
         catch (Exception ex)

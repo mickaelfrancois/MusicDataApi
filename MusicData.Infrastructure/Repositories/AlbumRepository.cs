@@ -14,7 +14,8 @@ internal sealed class AlbumRepository : IAlbumRepository
         _collection = database.GetCollection<AlbumEntity>(CollectionName);
         _collection.EnsureIndex(x => x.Name, unique: false);
         _collection.EnsureIndex(x => x.Artist, unique: false);
-        _collection.EnsureIndex(x => x.MusicBrainzID, unique: false);
+        _collection.EnsureIndex(x => x.MusicBrainzArtistID, unique: false);
+        _collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
 
 
@@ -50,14 +51,14 @@ internal sealed class AlbumRepository : IAlbumRepository
 
     public AlbumEntity? GetByMusicBrainzID(string musicBrainzID)
     {
-        return _collection.FindOne(c => c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
+        return _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
     }
 
 
     public AlbumEntity? GetByName(string albumName, string artistName)
     {
         return _collection.FindOne(c => c.Name.Equals(albumName, StringComparison.InvariantCultureIgnoreCase)
-                                    && c.Artist.Equals(artistName, StringComparison.InvariantCultureIgnoreCase));
+                                    && c.Artist != null && c.Artist.Equals(artistName, StringComparison.InvariantCultureIgnoreCase));
     }
 
 
