@@ -4,7 +4,11 @@ namespace MusicData.Application.Interfaces;
 
 public interface IMusicAggregator
 {
-    Task<ArtistDto?> GetArtistAsync(string name, CancellationToken cancellationToken);
+    Task<ArtistDto?> GetArtistByNameAsync(string name, CancellationToken cancellationToken);
 
-    Task<AlbumDto?> GetAlbumAsync(string albumName, string artistName, CancellationToken cancellationToken);
+    Task<ArtistDto?> GetArtistByMusicBrainzIdAsync(string musicBrainzId, CancellationToken cancellationToken);
+
+    Task<AlbumDto?> GetAlbumByNameAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken);
+
+    Task<AlbumDto?> GetAlbumByMusicBrainzIdsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken);
 }

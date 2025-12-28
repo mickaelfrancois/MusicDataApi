@@ -6,6 +6,8 @@ public class ArtistDto
 
     public string Name { get; set; } = string.Empty;
 
+    public string MusicBrainzID { get; set; } = string.Empty;
+
     public string? Biography { get; set; }
 
     public string? Website { get; set; }
@@ -57,8 +59,6 @@ public class ArtistDto
     public string? PictureUrl { get; set; }
 
     public string? CountryCode { get; set; }
-
-    public string? MusicBrainzID { get; set; }
 
     public string? AudioDbID { get; set; }
 

@@ -3,7 +3,7 @@
 internal sealed class TokenBucketRateLimiter
 {
     private readonly int _capacity;
-    private readonly double _refillTokensPerSecond;
+    private readonly double _refillTokensPerMilliSecond;
     private double _tokens;
     private DateTime _lastRefill;
     private readonly object _sync = new();
@@ -14,7 +14,7 @@ internal sealed class TokenBucketRateLimiter
         if (per.TotalSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(per));
 
         _capacity = maxRequests;
-        _refillTokensPerSecond = maxRequests / per.TotalSeconds;
+        _refillTokensPerMilliSecond = maxRequests / per.TotalMilliseconds;
         _tokens = _capacity;
         _lastRefill = DateTime.UtcNow;
     }
@@ -22,11 +22,11 @@ internal sealed class TokenBucketRateLimiter
     private void Refill()
     {
         DateTime now = DateTime.UtcNow;
-        double seconds = (now - _lastRefill).TotalSeconds;
+        double seconds = (now - _lastRefill).TotalMilliseconds;
         if (seconds <= 0)
             return;
 
-        _tokens = Math.Min(_capacity, _tokens + (seconds * _refillTokensPerSecond));
+        _tokens = Math.Min(_capacity, _tokens + (seconds * _refillTokensPerMilliSecond));
         _lastRefill = now;
     }
 
@@ -44,9 +44,9 @@ internal sealed class TokenBucketRateLimiter
                     return;
                 }
 
-                double needed = (1.0 - _tokens) / _refillTokensPerSecond;
+                double needed = (1.0 - _tokens) / _refillTokensPerMilliSecond;
 
-                delayMs = Math.Max(1, (int)Math.Ceiling(needed * 1000.0));
+                delayMs = Math.Max(1, (int)Math.Ceiling(needed));
             }
 
             await Task.Delay(delayMs, cancellationToken);
