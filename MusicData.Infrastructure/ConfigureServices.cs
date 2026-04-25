@@ -30,7 +30,7 @@ public static class ConfigureServices
     {
         ArgumentException.ThrowIfNullOrEmpty(configuration.GetConnectionString("DefaultConnection"));
 
-        services.AddScoped<ILiteDatabase, LiteDatabase>(c =>
+        services.AddSingleton<ILiteDatabase, LiteDatabase>(c =>
         {
             return new LiteDatabase(configuration.GetConnectionString("DefaultConnection"));
         });
@@ -41,7 +41,6 @@ public static class ConfigureServices
 
         return services;
     }
-
 
     public static IServiceCollection AddServices(this IServiceCollection services, IConfiguration configuration)
     {
@@ -69,7 +68,6 @@ public static class ConfigureServices
                 };
             });
 
-
         services.AddHttpClient<IMusicService, MusicBrainzService>("musicbrainz", (sp, client) =>
         {
             MusicBrainzSettings settings = sp.GetRequiredService<IOptions<MusicBrainzSettings>>().Value;
@@ -84,7 +82,6 @@ public static class ConfigureServices
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
             };
         });
-
 
         services.AddHttpClient<IMusicService, FanartService>("fanart", (sp, client) =>
         {
@@ -164,7 +161,6 @@ public static class ConfigureServices
         return services;
     }
 
-
     public static IServiceCollection AddTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOpenTelemetry()
@@ -212,7 +208,6 @@ public static class ConfigureServices
         return services;
     }
 
-
     public static IServiceCollection AddApiAuthentication(this IServiceCollection services)
     {
         services.AddAuthentication(options =>
@@ -236,7 +231,6 @@ public static class ConfigureServices
 
         return services;
     }
-
 
     public static IServiceCollection AddIpRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
