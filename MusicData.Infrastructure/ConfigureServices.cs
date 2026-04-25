@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MusicData.Application.Interfaces;
+using MusicData.Infrastructure.HealthChecks;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Repositories;
 using MusicData.Infrastructure.Security;
@@ -38,6 +39,9 @@ public static class ConfigureServices
         services.AddScoped<IArtistRepository, ArtistRepository>();
         services.AddScoped<IAlbumRepository, AlbumRepository>();
         services.AddScoped<ILyricsRepository, LyricsRepository>();
+
+        services.AddHealthChecks()
+            .AddCheck<LiteDbHealthCheck>("litedb", tags: ["ready"]);
 
         return services;
     }

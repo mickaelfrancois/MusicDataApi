@@ -46,7 +46,10 @@ ForwardedHeadersOptions forwardOptions = new()
 };
 
 app.UseForwardedHeaders(forwardOptions);
-app.UseHttpsRedirection();
+
+if (!app.Environment.IsEnvironment("Docker"))
+    app.UseHttpsRedirection();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseResponseCaching();
@@ -55,7 +58,15 @@ app.UseIpRateLimiting();
 app.MapArtistsApiV1();
 app.MapAlbumsApiV1();
 app.MapLyricsApiV1();
-app.MapHealthChecks("/health");
+
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
 
 await app.RunAsync();
 
