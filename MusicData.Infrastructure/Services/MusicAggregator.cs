@@ -3,6 +3,8 @@ using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Services.MusicBrainz;
+using System.Diagnostics;
+using MusicData.Shared.Telemetry;
 using static MusicData.Infrastructure.Services.MusicBrainz.MusicBrainzService;
 
 namespace MusicData.Infrastructure.Services;
@@ -145,10 +147,13 @@ public class MusicAggregator : IMusicAggregator
             if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
                 await limiter.WaitForAvailabilityAsync();
 
-            return await service.GetArtistAsync(musicBrainzId, cancellationToken);
+            ArtistDto? result = await service.GetArtistAsync(musicBrainzId, cancellationToken);
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "artist" }, { "result", result is null ? "not_found" : "ok" } });
+            return result;
         }
         catch (Exception)
         {
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "artist" }, { "result", "error" } });
             return null;
         }
     }
@@ -164,10 +169,13 @@ public class MusicAggregator : IMusicAggregator
             if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
                 await limiter.WaitForAvailabilityAsync();
 
-            return await service.GetAlbumAsync(releaseMusicBrainzId, relaseGroupMusicBrainzId, cancellationToken);
+            AlbumDto? result = await service.GetAlbumAsync(releaseMusicBrainzId, relaseGroupMusicBrainzId, cancellationToken);
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "album" }, { "result", result is null ? "not_found" : "ok" } });
+            return result;
         }
         catch (Exception)
         {
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "album" }, { "result", "error" } });
             return null;
         }
     }

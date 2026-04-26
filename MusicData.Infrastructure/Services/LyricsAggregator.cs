@@ -2,6 +2,8 @@
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Infrastructure.RateLimiting;
+using System.Diagnostics;
+using MusicData.Shared.Telemetry;
 
 namespace MusicData.Infrastructure.Services;
 
@@ -77,10 +79,13 @@ internal class LyricsAggregator : ILyricsAggregator
             if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
                 await limiter.WaitForAvailabilityAsync();
 
-            return await service.GetLyricsAsync(title, artistName, albumName, duration, cancellationToken);
+            LyricsDto? result = await service.GetLyricsAsync(title, artistName, albumName, duration, cancellationToken);
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "lyrics" }, { "result", result is null ? "not_found" : "ok" } });
+            return result;
         }
         catch (Exception)
         {
+            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "lyrics" }, { "result", "error" } });
             return null;
         }
     }

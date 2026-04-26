@@ -1,8 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
+using MusicData.Shared.Telemetry;
 
 namespace MusicData.Application.Features.Lyrics;
 
@@ -24,6 +26,7 @@ public sealed class GetLyrics(ILyricsRepository lyricsRepository,
         if (lyricsEntity is not null)
         {
             logger.LogInformation("Lyrics '{Title}' found in cache", title);
+            Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "cache" } });
             LyricsDto dto = lyricsEntity.ToDto();
             dto.Origin = "Cache";
             return dto;
@@ -33,6 +36,7 @@ public sealed class GetLyrics(ILyricsRepository lyricsRepository,
         if (lyrics is null)
         {
             logger.LogInformation("Lyrics '{Title}' not found in any music service.", title);
+            Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "not_found" } });
             lyrics = new LyricsDto { Title = title, ArtistName = artistName, Origin = "NotFound" };
             lyricsRepository.Add(lyrics!.ToEntity());
             return null;
@@ -40,6 +44,7 @@ public sealed class GetLyrics(ILyricsRepository lyricsRepository,
 
         lyricsRepository.Add(lyrics!.ToEntity());
         logger.LogInformation("Lyrics '{Title}' cached", title);
+        Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "external" } });
 
         return lyrics;
     }

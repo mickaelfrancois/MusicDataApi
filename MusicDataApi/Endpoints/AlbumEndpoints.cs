@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MusicData.Application.DTOs;
 using MusicData.Application.Features.Albums;
 using MusicData.Application.Features.Artists;
-using MusicData.Infrastructure.Telemetry;
+using MusicData.Shared.Telemetry;
 
 namespace MusicData.Api.Endpoints;
 

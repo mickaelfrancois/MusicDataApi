@@ -19,6 +19,7 @@ using MusicData.Infrastructure.Services.LastFm;
 using MusicData.Infrastructure.Services.LrcLib;
 using MusicData.Infrastructure.Services.LyricsOvh;
 using MusicData.Infrastructure.Services.MusicBrainz;
+using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -167,48 +168,50 @@ public static class ConfigureServices
 
     public static IServiceCollection AddTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOpenTelemetry()
+        string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"];
+        string? newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"];
+        bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(otlpEndpoint);
+
+        OpenTelemetryBuilder otel = services.AddOpenTelemetry()
            .WithTracing(tracingBuilder =>
            {
                tracingBuilder
                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MusicDataApi"))
                    .AddSource("MusicDataApi")
                    .AddAspNetCoreInstrumentation()
-                   .AddHttpClientInstrumentation()
-                   .AddOtlpExporter(options =>
-                   {
-                       string endpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"]!;
-                       options.Endpoint = new Uri(endpoint + "/v1/traces");
-                       options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                   .AddHttpClientInstrumentation();
 
-                       string newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"]!;
+               if (hasOtlpEndpoint)
+               {
+                   tracingBuilder.AddOtlpExporter(options =>
+                   {
+                       options.Endpoint = new Uri(otlpEndpoint! + "/v1/traces");
+                       options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
                        if (!string.IsNullOrEmpty(newRelicInsertKey))
                            options.Headers = $"api-key={newRelicInsertKey}";
                    });
-
-               //if (builder.Environment.IsDevelopment())
-               //    tracingBuilder.AddConsoleExporter();
+               }
            })
            .WithMetrics(metricsBuilder =>
            {
                metricsBuilder
                    .SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("MusicDataApi"))
+                   .AddMeter("MusicDataApi")
                    .AddAspNetCoreInstrumentation()
-                   .AddHttpClientInstrumentation()
-                   .AddOtlpExporter(options =>
-                   {
-                       string endpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"]!;
-                       options.Endpoint = new Uri(endpoint + "/v1/metrics");
-                       options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                   .AddHttpClientInstrumentation();
 
-                       string newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"]!;
+               if (hasOtlpEndpoint)
+               {
+                   metricsBuilder.AddOtlpExporter(options =>
+                   {
+                       options.Endpoint = new Uri(otlpEndpoint! + "/v1/metrics");
+                       options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
                        if (!string.IsNullOrEmpty(newRelicInsertKey))
                            options.Headers = $"api-key={newRelicInsertKey}";
                    });
-
-               //if (builder.Environment.IsDevelopment())
-               //    metricsBuilder.AddConsoleExporter();
+               }
            });
+
         return services;
     }
 

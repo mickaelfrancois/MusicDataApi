@@ -1,8 +1,10 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
+using MusicData.Shared.Telemetry;
 
 namespace MusicData.Application.Features.Artists;
 
@@ -25,6 +27,7 @@ public sealed class GetArtistByName(IArtistRepository artistRepository,
         if (artistEntity is not null)
         {
             logger.LogInformation("Artist '{ArtistName}' found in cache", artistName);
+            Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "cache" } });
             ArtistDto dto = artistEntity.ToDto();
             dto.Origin = "Cache";
             return dto;
@@ -34,11 +37,13 @@ public sealed class GetArtistByName(IArtistRepository artistRepository,
         if (artist is null)
         {
             logger.LogInformation("Artist '{Name}' not found in any music service.", artistName);
+            Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "not_found" } });
             return null;
         }
 
         artistRepository.Add(artist!.ToEntity());
         logger.LogInformation("Artist '{ArtistName}' cached", artistName);
+        Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "external" } });
 
         return artist;
     }
