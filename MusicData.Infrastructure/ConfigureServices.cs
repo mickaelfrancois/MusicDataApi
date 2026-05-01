@@ -157,7 +157,7 @@ public static class ConfigureServices
         rateLimitOptions.ServiceLimits["fanartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
         rateLimitOptions.ServiceLimits["lyricsovhservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
         rateLimitOptions.ServiceLimits["lrclibservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["covertart"] = (MaxRequests: 10, PerMilliSeconds: 1000);
+        rateLimitOptions.ServiceLimits["coverartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
         services.Configure<RateLimitOptions>(o =>
         {
             o.ServiceLimits = rateLimitOptions.ServiceLimits;
