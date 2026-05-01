@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MusicData.Api.Endpoints;
 using MusicData.Application;
 using MusicData.Infrastructure;
@@ -67,7 +66,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     ResponseWriter = async (context, report) =>
     {
         context.Response.ContentType = "application/json";
-        var result = JsonSerializer.Serialize(new
+        string result = JsonSerializer.Serialize(new
         {
             status = report.Status.ToString(),
             duration = report.TotalDuration,
