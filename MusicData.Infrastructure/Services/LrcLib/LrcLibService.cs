@@ -1,24 +1,15 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
-using MusicData.Infrastructure.Services.LyricsOvh;
 
 namespace MusicData.Infrastructure.Services.LrcLib;
 
-public class LrcLibService([FromKeyedServices("lrclib")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LyricsOvhSettings> settings, ILogger<LyricsOvhService> logger)
+public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOptions, ILogger<LrcLibService> logger)
     : ILyricsService
 {
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
-
     public async Task<LyricsDto?> GetLyricsAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName) || string.IsNullOrEmpty(albumName))
             return null;
 

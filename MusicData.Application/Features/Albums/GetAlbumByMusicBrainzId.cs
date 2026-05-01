@@ -33,7 +33,7 @@ public sealed class GetAlbumByMusicBrainzId(
         => repository.GetByMusicBrainzID(key.AlbumMusicBrainzId);
 
     protected override Task<AlbumDto?> FetchAsync(AlbumByMbidKey key, CancellationToken cancellationToken)
-        => aggregator.GetAlbumByMusicBrainzIdsync(key.AlbumMusicBrainzId, key.ArtistMusicBrainzId, cancellationToken);
+        => aggregator.GetAlbumByMusicBrainzIdAsync(key.AlbumMusicBrainzId, key.ArtistMusicBrainzId, cancellationToken);
 
     protected override AlbumDto MapToDto(AlbumEntity entity) => entity.ToDto();
 

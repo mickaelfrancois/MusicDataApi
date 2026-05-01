@@ -19,7 +19,14 @@ internal static class HttpClientRegistration
         where TImpl : class, TInterface
         where TSettings : class, IHttpServiceSettings, new()
     {
-        services.Configure<TSettings>(configuration.GetSection(configSection));
+        IConfigurationSection section = configuration.GetSection(configSection);
+        services.Configure<TSettings>(section);
+
+        // Disabled services don't enter the container at all — the aggregator's
+        // IEnumerable<TInterface> simply won't see them, no per-call short-circuit
+        // is needed inside the implementation.
+        if (!section.GetValue<bool>("Enabled"))
+            return services;
 
         services.AddHttpClient<TInterface, TImpl>(name, (sp, client) =>
         {

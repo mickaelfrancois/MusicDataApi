@@ -43,11 +43,10 @@ public class LyricsMapperTests
     }
 
     [Fact]
-    public void DtoToEntity_DropsAlbumNameAndDuration_KnownAsymmetry()
+    public void RoundTrip_PreservesAlbumNameAndDuration()
     {
-        // Documented limitation: LyricsEntity does not carry AlbumName / Duration.
-        // This test is intentional — it pins the current shape so we notice if
-        // someone changes it (intentionally or not) without updating both sides.
+        // P2-2 regression guard: AlbumName and Duration used to be silently
+        // dropped on cache because LyricsEntity didn't carry them. Now it does.
         LyricsDto dto = new()
         {
             Title = "Walk",
@@ -58,7 +57,7 @@ public class LyricsMapperTests
 
         LyricsDto roundTripped = dto.ToEntity().ToDto();
 
-        Assert.Equal(string.Empty, roundTripped.AlbumName);
-        Assert.Equal(0, roundTripped.Duration);
+        Assert.Equal("Wasting Light", roundTripped.AlbumName);
+        Assert.Equal(257, roundTripped.Duration);
     }
 }

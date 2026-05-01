@@ -1,6 +1,6 @@
-﻿namespace MusicData.Domain.Entities;
+namespace MusicData.Domain.Entities;
 
-public class ArtistEntity
+public class ArtistEntity : IVersionedEntity
 {
     public int Id { get; set; }
 
@@ -13,8 +13,6 @@ public class ArtistEntity
     public string MusicBrainzID { get; set; } = string.Empty;
 
     public string? Biography { get; set; }
-
-    public string? BiographyFR { get; set; }
 
     public string? Website { get; set; }
 
@@ -70,19 +68,9 @@ public class ArtistEntity
 
     public int? BeginYear { get; set; }
 
-    public int? BornYear { get; set; }
-
     public int? EndYear { get; set; }
 
     public bool Disbanded { get; set; }
-
-    public int FanartsCount { get; set; } = 0;
-
-    public int PicturesCount { get; set; } = 0;
-
-    public int LogosCount { get; set; } = 0;
-
-    public int BannersCount { get; set; } = 0;
 
     public List<MemberEntity> Members { get; set; } = [];
 }

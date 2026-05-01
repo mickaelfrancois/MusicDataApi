@@ -40,6 +40,8 @@ public static class ConfigureServices
         services.AddScoped<IAlbumRepository, AlbumRepository>();
         services.AddScoped<ILyricsRepository, LyricsRepository>();
 
+        services.AddHostedService<LiteDbInitializer>();
+
         services.AddSingleton<IKeyedLocker, KeyedLocker>();
 
         services.AddHealthChecks()
@@ -61,7 +63,7 @@ public static class ConfigureServices
             configuration, "fanart", "Services:Fanart");
 
         services.AddExternalHttpClient<IMusicService, CoverArtService, CoverArtSettings>(
-            configuration, "covertart", "Services:CoverArt");
+            configuration, "coverart", "Services:CoverArt");
 
         services.AddExternalHttpClient<ILyricsService, LyricsOvhService, LyricsOvhSettings>(
             configuration, "lyricsovh", "Services:LyricsOvh");
@@ -147,8 +149,6 @@ public static class ConfigureServices
                 policy.RequireAuthenticatedUser();
             });
         });
-
-        services.AddAuthorization();
 
         return services;
     }

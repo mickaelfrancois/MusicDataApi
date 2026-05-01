@@ -1,6 +1,6 @@
-﻿namespace MusicData.Domain.Entities;
+namespace MusicData.Domain.Entities;
 
-public class LyricsEntity
+public class LyricsEntity : IVersionedEntity
 {
     public int Id { get; set; }
 
@@ -11,6 +11,10 @@ public class LyricsEntity
     public string Title { get; set; } = string.Empty;
 
     public string ArtistName { get; set; } = string.Empty;
+
+    public string AlbumName { get; set; } = string.Empty;
+
+    public int Duration { get; set; }
 
     public string? PlainLyrics { get; set; }
 

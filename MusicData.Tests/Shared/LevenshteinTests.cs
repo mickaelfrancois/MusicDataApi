@@ -4,11 +4,6 @@ namespace MusicData.Tests.Shared;
 
 public class LevenshteinTests
 {
-    public LevenshteinTests()
-    {
-        Levenshtein.IgnoreCase = true;
-    }
-
     [Fact]
     public void Similarity_IdenticalStrings_ReturnsOne()
     {
@@ -29,10 +24,17 @@ public class LevenshteinTests
     }
 
     [Fact]
-    public void Similarity_DifferentCase_ReturnsOne_WhenIgnoreCaseEnabled()
+    public void Similarity_DifferentCase_IgnoredByDefault()
     {
-        Levenshtein.IgnoreCase = true;
         Assert.Equal(1.0f, Levenshtein.Similarity("Foo Fighters", "foo fighters"));
+    }
+
+    [Fact]
+    public void Similarity_DifferentCase_RespectedWhenIgnoreCaseFalse()
+    {
+        // 12 chars total, 2 differ (F vs f, F vs f) -> 1 - 2/12 = 0.8333...
+        float similarity = Levenshtein.Similarity("Foo Fighters", "foo fighters", ignoreCase: false);
+        Assert.InRange(similarity, 0.83f, 0.84f);
     }
 
     [Fact]

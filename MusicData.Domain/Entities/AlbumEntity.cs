@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Domain.Entities;
 
-public class AlbumEntity
+public class AlbumEntity : IVersionedEntity
 {
     public int Id { get; set; }
 
@@ -59,8 +59,6 @@ public class AlbumEntity
     public string? Genre { get; set; }
 
     public DateTime? ReleaseDate { get; set; }
-
-    public int CoversCount { get; set; } = 0;
 
     public List<Track> Tracks { get; set; } = [];
 }

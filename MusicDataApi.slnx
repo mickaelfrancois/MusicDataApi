@@ -6,6 +6,8 @@
   <Project Path="MusicData.Domain/MusicData.Domain.csproj" Id="15be506a-d8dc-43b1-8b00-82fb212dc475" />
   <Project Path="MusicData.Infrastructure/MusicData.Infrastructure.csproj" Id="96c50ef3-9ebc-4cf4-ac01-b2a95dc0749b" />
   <Project Path="MusicData.Shared/MusicData.Shared.csproj" Id="3249d32b-494e-4b82-b221-73b43a7b112b" />
+  <Project Path="MusicData.Tests/MusicData.Tests.csproj">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
   <Project Path="MusicDataApi/MusicData.Api.csproj" />
-  <Project Path="MusicData.Tests/MusicData.Tests.csproj" />
 </Solution>

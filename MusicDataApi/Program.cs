@@ -18,6 +18,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddIpRateLimiting(builder.Configuration);
 builder.Services.AddResponseCaching();
 builder.Services.AddApiAuthentication();
+builder.Services.AddProblemDetails();
 
 JsonSerializerOptions jsonOptions = new()
 {
@@ -35,6 +36,9 @@ builder.Services.ConfigureHttpJsonOptions(opts =>
 });
 
 WebApplication app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
@@ -89,4 +93,8 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 });
 
 await app.RunAsync();
+
+
+// Exposed so MusicData.Tests can use WebApplicationFactory<Program> for end-to-end tests.
+public partial class Program { }
 

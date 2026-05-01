@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -8,13 +7,10 @@ using MusicData.Application.Interfaces;
 namespace MusicData.Infrastructure.Services.CoverArt;
 
 
-public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<CoverArtSettings> settings, ILogger<CoverArtService> logger)
+public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<CoverArtSettings> settings, ILogger<CoverArtService> logger)
     : IMusicService
 {
     private readonly string _apiURL = $"{settings.Value.BaseUrl}/release";
-
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
 
     public Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
@@ -24,9 +20,6 @@ public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpCli
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 

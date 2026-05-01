@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -8,16 +7,11 @@ using MusicData.Application.Interfaces;
 namespace MusicData.Infrastructure.Services.Fanart;
 
 
-public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<FanartSettings> settings, ILogger<FanartService> logger)
+public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<FanartSettings> settings, ILogger<FanartService> logger)
     : IMusicService
 {
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -59,9 +53,6 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseGroupMusicBrainzId))
             return null;
 
@@ -120,16 +111,7 @@ internal sealed class FanartImage
 
     public string Likes { get; set; } = string.Empty;
 
-    public int Score
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(Likes))
-                return 0;
-            Int32.TryParse(Likes, out int score);
-            return score;
-        }
-    }
+    public int Score => int.TryParse(Likes, out int score) ? score : 0;
 }
 
 
