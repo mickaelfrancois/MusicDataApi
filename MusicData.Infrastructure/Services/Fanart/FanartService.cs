@@ -13,9 +13,6 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;
 
-    private static readonly SemaphoreSlim _concurrencySemaphore = new(initialCount: 5);
-    private static readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(10);
-
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
         if (!Enabled)
@@ -24,15 +21,8 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        bool entered = false;
-        ArtistDto? artist = null;
-
         try
         {
-            entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
-            if (!entered)
-                return null;
-
             string requestUrl = $"{musicBrainzId}?api_key={settings.Value.ApiKey}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
@@ -52,8 +42,7 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
             }
 
             logger.LogDebug("Found Artist '{MusicBrainzId}'", musicBrainzId);
-
-            artist = FanartMapper.MapArtist(root);
+            return FanartMapper.MapArtist(root);
         }
         catch (OperationCanceledException ex)
         {
@@ -65,13 +54,6 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
             return null;
         }
-        finally
-        {
-            if (entered)
-                _concurrencySemaphore.Release();
-        }
-
-        return artist;
     }
 
 
@@ -83,15 +65,8 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
         if (string.IsNullOrWhiteSpace(releaseGroupMusicBrainzId))
             return null;
 
-        bool entered = false;
-        AlbumDto? album = null;
-
         try
         {
-            entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
-            if (!entered)
-                return null;
-
             string requestUrl = $"{releaseGroupMusicBrainzId}?api_key={settings.Value.ApiKey}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
@@ -111,8 +86,7 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
             }
 
             logger.LogDebug("Found Album '{ReleaseGroupMusicBrainzId}'", releaseGroupMusicBrainzId);
-
-            album = FanartMapper.MapAlbum(root);
+            return FanartMapper.MapAlbum(root);
         }
         catch (OperationCanceledException ex)
         {
@@ -124,13 +98,6 @@ public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, 
             logger.LogError(ex, "FanartService.GetAlbumAsync: {Message}", ex.Message);
             return null;
         }
-        finally
-        {
-            if (entered)
-                _concurrencySemaphore.Release();
-        }
-
-        return album;
     }
 }
 
