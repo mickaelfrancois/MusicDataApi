@@ -1,5 +1,5 @@
 @HostAddress = https://musicdata-api.fpc-france.com
-@ApiKey = 14407d43-bf4d-64da-1121-3b8cb0b5e6f2
+@ApiKey = set-your-x-api-key-here
 
 @artistMbid = a8d77515-f7b7-4d71-9646-8446a3b2a341
 @albumMbid = 98cfdc56-7acf-4ecb-8b42-71c5b1c7421b
