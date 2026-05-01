@@ -60,8 +60,6 @@ public class AlbumEntity
 
     public DateTime? ReleaseDate { get; set; }
 
-    public int CoversCount { get; set; } = 0;
-
     public List<Track> Tracks { get; set; } = [];
 }
 

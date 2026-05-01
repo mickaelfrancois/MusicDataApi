@@ -119,16 +119,7 @@ internal sealed class FanartImage
 
     public string Likes { get; set; } = string.Empty;
 
-    public int Score
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(Likes))
-                return 0;
-            Int32.TryParse(Likes, out int score);
-            return score;
-        }
-    }
+    public int Score => int.TryParse(Likes, out int score) ? score : 0;
 }
 
 
