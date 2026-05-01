@@ -1,4 +1,4 @@
-﻿using LiteDB;
+using LiteDB;
 using MusicData.Application.Interfaces;
 using MusicData.Domain.Entities;
 
@@ -19,10 +19,7 @@ internal sealed class LyricsRepository : ILyricsRepository
 
     public void Add(LyricsEntity lyrics)
     {
-        LyricsEntity? existing = null;
-
-        existing ??= _collection.FindOne(c => c.Title.Equals(lyrics.Title, StringComparison.InvariantCultureIgnoreCase)
-                                            && c.ArtistName.Equals(lyrics.ArtistName, StringComparison.InvariantCultureIgnoreCase));
+        LyricsEntity? existing = FindByTitleAndArtist(lyrics.Title, lyrics.ArtistName);
 
         if (existing is not null)
         {
@@ -45,15 +42,18 @@ internal sealed class LyricsRepository : ILyricsRepository
     }
 
 
-    public LyricsEntity? Get(string title, string artistName)
-    {
-        return _collection.FindOne(c => c.Title.Equals(title, StringComparison.InvariantCultureIgnoreCase)
-                                  && c.ArtistName.Equals(artistName, StringComparison.InvariantCultureIgnoreCase));
-    }
+    public LyricsEntity? Get(string title, string artistName) => FindByTitleAndArtist(title, artistName);
 
 
     public void Update(LyricsEntity lyrics)
     {
         _collection.Update(lyrics);
     }
+
+
+    private LyricsEntity? FindByTitleAndArtist(string title, string artistName) =>
+        _collection.FindOne(
+            "LOWER($.Title) = @0 AND LOWER($.ArtistName) = @1",
+            (title ?? string.Empty).ToLowerInvariant(),
+            (artistName ?? string.Empty).ToLowerInvariant());
 }

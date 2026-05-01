@@ -1,4 +1,4 @@
-﻿using LiteDB;
+using LiteDB;
 using MusicData.Application.Interfaces;
 using MusicData.Domain.Entities;
 
@@ -22,9 +22,9 @@ internal sealed class ArtistRepository : IArtistRepository
         ArtistEntity? existing = null;
 
         if (!string.IsNullOrWhiteSpace(artist.MusicBrainzID))
-            existing = _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(artist.MusicBrainzID, StringComparison.InvariantCultureIgnoreCase));
+            existing = FindByMusicBrainzID(artist.MusicBrainzID);
 
-        existing ??= _collection.FindOne(c => c.Name.Equals(artist.Name, StringComparison.InvariantCultureIgnoreCase));
+        existing ??= FindByName(artist.Name);
 
         if (existing is not null)
         {
@@ -47,20 +47,22 @@ internal sealed class ArtistRepository : IArtistRepository
     }
 
 
-    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID)
-    {
-        return _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
-    }
+    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
 
 
-    public ArtistEntity? GetByName(string name)
-    {
-        return _collection.FindOne(c => c.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
-    }
+    public ArtistEntity? GetByName(string name) => FindByName(name);
 
 
     public void Update(ArtistEntity artist)
     {
         _collection.Update(artist);
     }
+
+
+    private ArtistEntity? FindByMusicBrainzID(string musicBrainzID) =>
+        _collection.FindOne("LOWER($.MusicBrainzID) = @0", (musicBrainzID ?? string.Empty).ToLowerInvariant());
+
+
+    private ArtistEntity? FindByName(string name) =>
+        _collection.FindOne("LOWER($.Name) = @0", (name ?? string.Empty).ToLowerInvariant());
 }
