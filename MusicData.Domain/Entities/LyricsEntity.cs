@@ -1,6 +1,6 @@
 namespace MusicData.Domain.Entities;
 
-public class LyricsEntity
+public class LyricsEntity : IVersionedEntity
 {
     public int Id { get; set; }
 

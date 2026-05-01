@@ -4,55 +4,32 @@ using MusicData.Domain.Entities;
 
 namespace MusicData.Infrastructure.Repositories;
 
-internal sealed class AlbumRepository : IAlbumRepository
+internal sealed class AlbumRepository(ILiteDatabase database)
+    : LiteDbRepository<AlbumEntity>(database, "albums"), IAlbumRepository
 {
-    private readonly ILiteCollection<AlbumEntity> _collection;
-    private const string CollectionName = "albums";
-
-    public AlbumRepository(ILiteDatabase database)
+    protected override void EnsureIndexes(ILiteCollection<AlbumEntity> collection)
     {
-        _collection = database.GetCollection<AlbumEntity>(CollectionName);
-        _collection.EnsureIndex(x => x.Name, unique: false);
-        _collection.EnsureIndex(x => x.Artist, unique: false);
-        _collection.EnsureIndex(x => x.MusicBrainzArtistID, unique: false);
-        _collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
+        collection.EnsureIndex(x => x.Name, unique: false);
+        collection.EnsureIndex(x => x.Artist, unique: false);
+        collection.EnsureIndex(x => x.MusicBrainzArtistID, unique: false);
+        collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
 
-
-    public void Add(AlbumEntity album)
-    {
-        AlbumEntity? existing = !string.IsNullOrWhiteSpace(album.MusicBrainzID)
-            ? FindByMusicBrainzID(album.MusicBrainzID)
-            : _collection.FindOne(
+    protected override AlbumEntity? FindExisting(AlbumEntity incoming) =>
+        !string.IsNullOrWhiteSpace(incoming.MusicBrainzID)
+            ? FindByLowerField(nameof(AlbumEntity.MusicBrainzID), incoming.MusicBrainzID)
+            : Collection.FindOne(
                 "LOWER($.Name) = @0 AND LOWER($.Artist) = @1",
-                (album.Name ?? string.Empty).ToLowerInvariant(),
-                (album.Artist ?? string.Empty).ToLowerInvariant());
-
-        if (existing is not null)
-        {
-            album.UpdateDateTime = DateTime.UtcNow;
-            album.Version = 1;
-            _collection.Update(existing.Id, album);
-        }
-        else
-        {
-            album.UpdateDateTime = DateTime.UtcNow;
-            album.Version = 1;
-            _collection.Insert(album);
-        }
-    }
+                (incoming.Name ?? string.Empty).ToLowerInvariant(),
+                (incoming.Artist ?? string.Empty).ToLowerInvariant());
 
 
-    public AlbumEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
-
+    public AlbumEntity? GetByMusicBrainzID(string musicBrainzID) =>
+        FreshOrNull(FindByLowerField(nameof(AlbumEntity.MusicBrainzID), musicBrainzID));
 
     public AlbumEntity? GetByName(string albumName, string artistName) =>
-        _collection.FindOne(
+        FreshOrNull(Collection.FindOne(
             "LOWER($.Name) = @0 AND LOWER($.Artist) = @1",
             (albumName ?? string.Empty).ToLowerInvariant(),
-            (artistName ?? string.Empty).ToLowerInvariant());
-
-
-    private AlbumEntity? FindByMusicBrainzID(string musicBrainzID) =>
-        _collection.FindOne("LOWER($.MusicBrainzID) = @0", (musicBrainzID ?? string.Empty).ToLowerInvariant());
+            (artistName ?? string.Empty).ToLowerInvariant()));
 }
