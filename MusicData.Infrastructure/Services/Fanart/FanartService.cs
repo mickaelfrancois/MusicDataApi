@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -8,7 +7,7 @@ using MusicData.Application.Interfaces;
 namespace MusicData.Infrastructure.Services.Fanart;
 
 
-public class FanartService([FromKeyedServices("fanart")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<FanartSettings> settings, ILogger<FanartService> logger)
+public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<FanartSettings> settings, ILogger<FanartService> logger)
     : IMusicService
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;

@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -8,7 +7,7 @@ using MusicData.Application.Interfaces;
 namespace MusicData.Infrastructure.Services.CoverArt;
 
 
-public class CoverArtService([FromKeyedServices("coverart")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<CoverArtSettings> settings, ILogger<CoverArtService> logger)
+public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<CoverArtSettings> settings, ILogger<CoverArtService> logger)
     : IMusicService
 {
     private readonly string _apiURL = $"{settings.Value.BaseUrl}/release";

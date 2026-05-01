@@ -1,6 +1,5 @@
 ﻿using Hqub.MusicBrainz;
 using Hqub.MusicBrainz.Entities;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -9,7 +8,7 @@ using MusicData.Shared;
 
 namespace MusicData.Infrastructure.Services.MusicBrainz;
 
-public partial class MusicBrainzService([FromKeyedServices("musicbrainz")] HttpClient httpClient, ILogger<MusicBrainzService> logger, IOptions<MusicBrainzSettings> settings) : IMusicService, IMusicBrainzLookup
+public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrainzService> logger, IOptions<MusicBrainzSettings> settings) : IMusicService, IMusicBrainzLookup
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;
 

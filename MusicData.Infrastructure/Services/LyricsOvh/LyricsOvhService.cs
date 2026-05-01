@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -7,7 +6,7 @@ using MusicData.Application.Interfaces;
 
 namespace MusicData.Infrastructure.Services.LyricsOvh;
 
-public class LyricsOvhService([FromKeyedServices("lyricsovh")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LyricsOvhSettings> settings, ILogger<LyricsOvhService> logger)
+public class LyricsOvhService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LyricsOvhSettings> settings, ILogger<LyricsOvhService> logger)
     : ILyricsService
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;

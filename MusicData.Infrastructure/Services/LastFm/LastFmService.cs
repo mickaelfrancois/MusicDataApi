@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
@@ -9,7 +8,7 @@ using MusicData.Application.Interfaces;
 namespace MusicData.Infrastructure.Services.LastFm;
 
 
-public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LastFmSettings> settings, ILogger<LastFmService> logger) : IMusicService
+public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LastFmSettings> settings, ILogger<LastFmService> logger) : IMusicService
 {
     private readonly string _apiURL = $"{settings.Value.BaseUrl}?api_key={settings.Value.ApiKey}&format=json";
 
