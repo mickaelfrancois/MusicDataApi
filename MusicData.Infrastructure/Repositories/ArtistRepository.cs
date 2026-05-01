@@ -9,6 +9,11 @@ internal sealed class ArtistRepository : IArtistRepository
     private readonly ILiteCollection<ArtistEntity> _collection;
     private const string CollectionName = "artists";
 
+    // Bumped to 2 when P0-4 added Wikipedia, TikTok, Threads, SongKick, SoundCloud,
+    // Imdb, Fanart4Url, Fanart5Url. Pre-fix rows (Version = 1) are treated as stale
+    // so the handler falls through to the aggregator and re-populates them.
+    private const int SchemaVersion = 2;
+
     public ArtistRepository(ILiteDatabase database)
     {
         _collection = database.GetCollection<ArtistEntity>(CollectionName);
@@ -23,25 +28,24 @@ internal sealed class ArtistRepository : IArtistRepository
             ? FindByMusicBrainzID(artist.MusicBrainzID)
             : FindByName(artist.Name);
 
+        artist.UpdateDateTime = DateTime.UtcNow;
+        artist.Version = SchemaVersion;
+
         if (existing is not null)
-        {
-            artist.UpdateDateTime = DateTime.UtcNow;
-            artist.Version = 1;
             _collection.Update(existing.Id, artist);
-        }
         else
-        {
-            artist.UpdateDateTime = DateTime.UtcNow;
-            artist.Version = 1;
             _collection.Insert(artist);
-        }
     }
 
 
-    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
+    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) => FreshOrNull(FindByMusicBrainzID(musicBrainzID));
 
 
-    public ArtistEntity? GetByName(string name) => FindByName(name);
+    public ArtistEntity? GetByName(string name) => FreshOrNull(FindByName(name));
+
+
+    private static ArtistEntity? FreshOrNull(ArtistEntity? entity) =>
+        entity is null || entity.Version < SchemaVersion ? null : entity;
 
 
     private ArtistEntity? FindByMusicBrainzID(string musicBrainzID) =>

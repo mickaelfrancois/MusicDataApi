@@ -76,4 +76,39 @@ public class ArtistRepositoryTests : IDisposable
     {
         Assert.Null(_sut.GetByName("nobody"));
     }
+
+    [Fact]
+    public void Get_LegacyVersionRow_IsTreatedAsStaleAndReturnsNull()
+    {
+        // Insert a row that simulates a pre-P0-4 cache entry: schema version 1.
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        raw.Insert(new ArtistEntity { Name = "Old Crow", MusicBrainzID = "legacy-mbid", Version = 1 });
+
+        Assert.Null(_sut.GetByMusicBrainzID("legacy-mbid"));
+        Assert.Null(_sut.GetByName("Old Crow"));
+    }
+
+    [Fact]
+    public void Add_StampsCurrentSchemaVersion()
+    {
+        _sut.Add(new ArtistEntity { Name = "Fresh", MusicBrainzID = "fresh-mbid" });
+
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        ArtistEntity? stored = raw.FindOne(x => x.MusicBrainzID == "fresh-mbid");
+
+        Assert.NotNull(stored);
+        Assert.Equal(2, stored!.Version);
+    }
+
+    [Fact]
+    public void Add_OverLegacyRow_UpgradesItToCurrentSchemaVersion()
+    {
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        raw.Insert(new ArtistEntity { Name = "Upgrade Me", MusicBrainzID = "u-mbid", Version = 1 });
+
+        _sut.Add(new ArtistEntity { Name = "Upgrade Me", MusicBrainzID = "u-mbid", Biography = "refreshed" });
+
+        Assert.NotNull(_sut.GetByMusicBrainzID("u-mbid"));
+        Assert.Equal("refreshed", _sut.GetByMusicBrainzID("u-mbid")!.Biography);
+    }
 }
