@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
@@ -15,6 +15,7 @@ public interface IGetLyrics
 
 public sealed class GetLyrics(ILyricsRepository lyricsRepository,
     ILyricsAggregator lyricsAggregator,
+    IKeyedLocker keyedLocker,
     ILogger<GetLyrics> logger) : IGetLyrics
 {
     public async Task<LyricsDto?> HandleAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken = default)
@@ -22,15 +23,14 @@ public sealed class GetLyrics(ILyricsRepository lyricsRepository,
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName))
             return null;
 
-        LyricsEntity? lyricsEntity = lyricsRepository.Get(title, artistName);
-        if (lyricsEntity is not null)
-        {
-            logger.LogInformation("Lyrics '{Title}' found in cache", title);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "cache" } });
-            LyricsDto dto = lyricsEntity.ToDto();
-            dto.Origin = "Cache";
-            return dto;
-        }
+        if (TryGetCached(title, artistName, out LyricsDto? cached))
+            return cached;
+
+        string lockKey = $"lyrics:{artistName.ToLowerInvariant()}:{title.ToLowerInvariant()}";
+        using IDisposable _ = await keyedLocker.LockAsync(lockKey, cancellationToken);
+
+        if (TryGetCached(title, artistName, out cached))
+            return cached;
 
         LyricsDto? lyrics = await lyricsAggregator.GetLyricsAsync(title, artistName, albumName, duration, cancellationToken);
         if (lyrics is null)
@@ -47,5 +47,22 @@ public sealed class GetLyrics(ILyricsRepository lyricsRepository,
         Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "external" } });
 
         return lyrics;
+    }
+
+
+    private bool TryGetCached(string title, string artistName, out LyricsDto? dto)
+    {
+        LyricsEntity? lyricsEntity = lyricsRepository.Get(title, artistName);
+        if (lyricsEntity is null)
+        {
+            dto = null;
+            return false;
+        }
+
+        logger.LogInformation("Lyrics '{Title}' found in cache", title);
+        Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "cache" } });
+        dto = lyricsEntity.ToDto();
+        dto.Origin = "Cache";
+        return true;
     }
 }

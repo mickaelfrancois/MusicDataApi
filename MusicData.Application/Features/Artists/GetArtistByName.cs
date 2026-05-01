@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
@@ -15,6 +15,7 @@ public interface IGetArtistByName
 
 public sealed class GetArtistByName(IArtistRepository artistRepository,
     IMusicAggregator musicAggregator,
+    IKeyedLocker keyedLocker,
     ILogger<GetArtistByName> logger) : IGetArtistByName
 {
     public async Task<ArtistDto?> HandleAsync(string artistName, CancellationToken cancellationToken = default)
@@ -22,16 +23,13 @@ public sealed class GetArtistByName(IArtistRepository artistRepository,
         if (string.IsNullOrWhiteSpace(artistName))
             return null;
 
-        ArtistEntity? artistEntity = artistRepository.GetByName(artistName!);
+        if (TryGetCached(artistName, out ArtistDto? cached))
+            return cached;
 
-        if (artistEntity is not null)
-        {
-            logger.LogInformation("Artist '{ArtistName}' found in cache", artistName);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "cache" } });
-            ArtistDto dto = artistEntity.ToDto();
-            dto.Origin = "Cache";
-            return dto;
-        }
+        using IDisposable _ = await keyedLocker.LockAsync($"artist:byname:{artistName.ToLowerInvariant()}", cancellationToken);
+
+        if (TryGetCached(artistName, out cached))
+            return cached;
 
         ArtistDto? artist = await musicAggregator.GetArtistByNameAsync(artistName, cancellationToken);
         if (artist is null)
@@ -46,5 +44,22 @@ public sealed class GetArtistByName(IArtistRepository artistRepository,
         Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "external" } });
 
         return artist;
+    }
+
+
+    private bool TryGetCached(string artistName, out ArtistDto? dto)
+    {
+        ArtistEntity? artistEntity = artistRepository.GetByName(artistName);
+        if (artistEntity is null)
+        {
+            dto = null;
+            return false;
+        }
+
+        logger.LogInformation("Artist '{ArtistName}' found in cache", artistName);
+        Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "cache" } });
+        dto = artistEntity.ToDto();
+        dto.Origin = "Cache";
+        return true;
     }
 }

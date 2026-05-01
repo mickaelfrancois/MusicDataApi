@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
@@ -13,23 +13,24 @@ public interface IGetAlbumByName
     Task<AlbumDto?> HandleAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken = default);
 }
 
-public sealed class GetAlbumByName(IAlbumRepository albumRepository, IMusicAggregator musicAggregator, ILogger<GetAlbumByName> logger) : IGetAlbumByName
+public sealed class GetAlbumByName(IAlbumRepository albumRepository,
+    IMusicAggregator musicAggregator,
+    IKeyedLocker keyedLocker,
+    ILogger<GetAlbumByName> logger) : IGetAlbumByName
 {
     public async Task<AlbumDto?> HandleAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(albumName) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
             return null;
 
+        if (TryGetCached(albumName, artistMusicBrainzId, out AlbumDto? cached))
+            return cached;
 
-        AlbumEntity? albumEntity = albumRepository.GetByName(albumName, artistMusicBrainzId);
-        if (albumEntity is not null)
-        {
-            logger.LogInformation("Album '{AlbumName}' of '{ArtistName}' was found in cache", albumEntity.Name, albumEntity.Artist);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "cache" } });
-            AlbumDto dto = albumEntity.ToDto();
-            dto.Origin = "Cache";
-            return dto;
-        }
+        string lockKey = $"album:byname:{artistMusicBrainzId.ToLowerInvariant()}:{albumName.ToLowerInvariant()}";
+        using IDisposable _ = await keyedLocker.LockAsync(lockKey, cancellationToken);
+
+        if (TryGetCached(albumName, artistMusicBrainzId, out cached))
+            return cached;
 
         AlbumDto? album = await musicAggregator.GetAlbumByNameAsync(albumName, artistMusicBrainzId, cancellationToken);
         if (album is null)
@@ -44,5 +45,22 @@ public sealed class GetAlbumByName(IAlbumRepository albumRepository, IMusicAggre
         Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "external" } });
 
         return album;
+    }
+
+
+    private bool TryGetCached(string albumName, string artistMusicBrainzId, out AlbumDto? dto)
+    {
+        AlbumEntity? albumEntity = albumRepository.GetByName(albumName, artistMusicBrainzId);
+        if (albumEntity is null)
+        {
+            dto = null;
+            return false;
+        }
+
+        logger.LogInformation("Album '{AlbumName}' of '{ArtistName}' was found in cache", albumEntity.Name, albumEntity.Artist);
+        Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "cache" } });
+        dto = albumEntity.ToDto();
+        dto.Origin = "Cache";
+        return true;
     }
 }
