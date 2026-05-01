@@ -1,38 +1,22 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Services.MusicBrainz;
-using System.Diagnostics;
-using MusicData.Shared.Telemetry;
-using static MusicData.Infrastructure.Services.MusicBrainz.MusicBrainzService;
 
 namespace MusicData.Infrastructure.Services;
 
-public class MusicAggregator : IMusicAggregator
+internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IMusicAggregator
 {
-    private readonly IEnumerable<IMusicService> _services;
-    private readonly RateLimitOptions _rateLimits;
-    private readonly Dictionary<Type, TokenBucketRateLimiter> _limiters;
+    private readonly IMusicBrainzLookup _musicBrainz;
 
-    public MusicAggregator(IEnumerable<IMusicService> services, IOptions<RateLimitOptions>? rateLimitOptions)
+    public MusicAggregator(
+        IEnumerable<IMusicService> services,
+        IMusicBrainzLookup musicBrainz,
+        IOptions<RateLimitOptions>? rateLimitOptions)
+        : base(services, rateLimitOptions)
     {
-        _services = services;
-        _rateLimits = rateLimitOptions!.Value;
-
-        _limiters = _services
-            .Select(s => s.GetType())
-            .Distinct()
-            .ToDictionary(
-                t => t,
-                t =>
-                {
-                    string key = t.Name.ToLowerInvariant();
-                    if (_rateLimits.ServiceLimits.TryGetValue(key, out ServiceRateLimit? cfg) && cfg is not null)
-                        return new TokenBucketRateLimiter(cfg.MaxRequests, TimeSpan.FromMilliseconds(cfg.PerMilliSeconds));
-
-                    return new TokenBucketRateLimiter(1, TimeSpan.FromMilliseconds(1));
-                });
+        _musicBrainz = musicBrainz;
     }
 
 
@@ -41,17 +25,11 @@ public class MusicAggregator : IMusicAggregator
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
-        string? musicBrainzId = await musicBrainz.FindArtistAsync(name, cancellationToken);
-
+        string? musicBrainzId = await _musicBrainz.FindArtistAsync(name, cancellationToken);
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        List<ArtistDto> artists = (await GetArtistsAsync(musicBrainzId, cancellationToken)).ToList();
-        if (artists.Count == 0)
-            return null;
-
-        return BuildMergedArtist(artists);
+        return await GetArtistByMusicBrainzIdAsync(musicBrainzId, cancellationToken);
     }
 
 
@@ -60,20 +38,12 @@ public class MusicAggregator : IMusicAggregator
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        List<ArtistDto> artists = (await GetArtistsAsync(musicBrainzId, cancellationToken)).ToList();
-        if (artists.Count == 0)
-            return null;
+        IReadOnlyList<ArtistDto> artists = await RunAllSafeAsync(
+            "artist",
+            (s, ct) => s.GetArtistAsync(musicBrainzId, ct),
+            cancellationToken);
 
-        return BuildMergedArtist(artists);
-    }
-
-
-    private async Task<IEnumerable<ArtistDto>> GetArtistsAsync(string musicBrainzId, CancellationToken cancellationToken)
-    {
-        Task<ArtistDto?>[] tasks = _services.Select(service => SafeGetArtistAsync(service, musicBrainzId, cancellationToken)).ToArray();
-        ArtistDto?[] results = await Task.WhenAll(tasks);
-
-        return results.Where(artist => artist is not null)!;
+        return artists.Count == 0 ? null : BuildMergedArtist(artists);
     }
 
 
@@ -82,14 +52,24 @@ public class MusicAggregator : IMusicAggregator
         if (string.IsNullOrEmpty(albumName))
             return null;
 
-        List<AlbumDto> albums = (await GetAlbumsAsync(albumName, artistMusicBrainzId, cancellationToken)).ToList();
+        MusicBrainzReleaseInfo? releaseInfo = await _musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
+        if (releaseInfo is null || string.IsNullOrEmpty(releaseInfo.ReleaseId))
+            return null;
+
+        string releaseId = releaseInfo.ReleaseId;
+        string? releaseGroupId = releaseInfo.ReleaseGroupId;
+
+        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
+            "album",
+            (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
+            cancellationToken);
+
         if (albums.Count == 0)
             return null;
 
-        AlbumDto mergedAlbums = BuildMergedAlbum(albums);
-        mergedAlbums.MusicBrainzArtistID = artistMusicBrainzId;
-
-        return mergedAlbums;
+        AlbumDto merged = BuildMergedAlbum(albums);
+        merged.MusicBrainzArtistID = artistMusicBrainzId;
+        return merged;
     }
 
 
@@ -98,89 +78,21 @@ public class MusicAggregator : IMusicAggregator
         if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
             return null;
 
-        List<AlbumDto> albums = (await GetAlbumsAsync(albumMusicBrainzId, cancellationToken)).ToList();
+        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
+            "album",
+            (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
+            cancellationToken);
+
         if (albums.Count == 0)
             return null;
 
-        AlbumDto mergedAlbums = BuildMergedAlbum(albums);
-        mergedAlbums.MusicBrainzArtistID = artistMusicBrainzId;
-
-        return mergedAlbums;
+        AlbumDto merged = BuildMergedAlbum(albums);
+        merged.MusicBrainzArtistID = artistMusicBrainzId;
+        return merged;
     }
 
 
-    private async Task<IEnumerable<AlbumDto>> GetAlbumsAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken)
-    {
-        MusicBrainzService musicBrainz = _services.OfType<MusicBrainzService>().FirstOrDefault()!;
-        MusicBrainzReleaseInfo? releaseInfo = await musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
-
-        if (releaseInfo is null)
-            return [];
-
-        Task<AlbumDto?>[] tasks = _services
-            .Select(s => SafeGetAlbumAsync(s, releaseInfo.ReleaseId, releaseInfo.ReleaseGroupId, cancellationToken))
-            .ToArray();
-
-        AlbumDto?[] results = await Task.WhenAll(tasks);
-
-        return results.Where(r => r is not null)!;
-    }
-
-
-    private async Task<IEnumerable<AlbumDto>> GetAlbumsAsync(string musicBrainzId, CancellationToken cancellationToken)
-    {
-        Task<AlbumDto?>[] tasks = _services
-            .Select(s => SafeGetAlbumAsync(s, musicBrainzId, relaseGroupMusicBrainzId: null, cancellationToken))
-            .ToArray();
-
-        AlbumDto?[] results = await Task.WhenAll(tasks);
-
-        return results.Where(r => r is not null)!;
-    }
-
-
-    private async Task<ArtistDto?> SafeGetArtistAsync(IMusicService service, string musicBrainzId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
-                await limiter.WaitForAvailabilityAsync();
-
-            ArtistDto? result = await service.GetArtistAsync(musicBrainzId, cancellationToken);
-            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "artist" }, { "result", result is null ? "not_found" : "ok" } });
-            return result;
-        }
-        catch (Exception)
-        {
-            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "artist" }, { "result", "error" } });
-            return null;
-        }
-    }
-
-
-    private async Task<AlbumDto?> SafeGetAlbumAsync(IMusicService service, string? releaseMusicBrainzId, string? relaseGroupMusicBrainzId, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(releaseMusicBrainzId))
-            return null;
-
-        try
-        {
-            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
-                await limiter.WaitForAvailabilityAsync();
-
-            AlbumDto? result = await service.GetAlbumAsync(releaseMusicBrainzId, relaseGroupMusicBrainzId, cancellationToken);
-            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "album" }, { "result", result is null ? "not_found" : "ok" } });
-            return result;
-        }
-        catch (Exception)
-        {
-            Telemetry.ExternalCalls.Add(1, new TagList { { "service", service.GetType().Name }, { "entity", "album" }, { "result", "error" } });
-            return null;
-        }
-    }
-
-
-    private static ArtistDto BuildMergedArtist(List<ArtistDto> artists)
+    private static ArtistDto BuildMergedArtist(IReadOnlyList<ArtistDto> artists)
     {
         ArtistDto merged = new()
         {
@@ -218,16 +130,16 @@ public class MusicAggregator : IMusicAggregator
             TikTok = FirstNonEmpty(artists, a => a.TikTok),
 
             Members = artists.SelectMany(a => a.Members ?? Enumerable.Empty<MemberDto>())
-                           .GroupBy(m => m.Name)
-                           .Select(g => g.First())
-                           .ToList()
+                             .GroupBy(m => m.Name)
+                             .Select(g => g.First())
+                             .ToList()
         };
 
         return merged;
     }
 
 
-    private static AlbumDto BuildMergedAlbum(List<AlbumDto> albums)
+    private static AlbumDto BuildMergedAlbum(IReadOnlyList<AlbumDto> albums)
     {
         AlbumDto merged = new()
         {
@@ -264,16 +176,7 @@ public class MusicAggregator : IMusicAggregator
         if (tracks is not null)
         {
             foreach (TrackDto track in tracks)
-            {
-                TrackDto trackDto = new()
-                {
-                    Duration = track.Duration,
-                    Name = track.Name,
-                    Position = track.Position,
-                };
-
-                merged.Tracks.Add(trackDto);
-            }
+                merged.Tracks.Add(new TrackDto { Duration = track.Duration, Name = track.Name, Position = track.Position });
         }
 
         return merged;

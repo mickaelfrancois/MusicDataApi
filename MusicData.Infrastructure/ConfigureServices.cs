@@ -69,6 +69,9 @@ public static class ConfigureServices
         services.AddExternalHttpClient<ILyricsService, LrcLibService, LrcLibSettings>(
             configuration, "lrclib", "Services:LrcLib");
 
+        services.AddSingleton<IMusicBrainzLookup>(sp =>
+            sp.GetRequiredService<IEnumerable<IMusicService>>().OfType<MusicBrainzService>().Single());
+
         services.AddSingleton<IMusicAggregator, MusicAggregator>();
         services.AddSingleton<ILyricsAggregator, LyricsAggregator>();
 
