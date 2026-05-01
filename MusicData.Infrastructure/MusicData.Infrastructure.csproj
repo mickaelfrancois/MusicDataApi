@@ -31,4 +31,8 @@
 	  <ProjectReference Include="..\MusicData.Shared\MusicData.Shared.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<InternalsVisibleTo Include="MusicData.Tests" />
+	</ItemGroup>
+
 </Project>

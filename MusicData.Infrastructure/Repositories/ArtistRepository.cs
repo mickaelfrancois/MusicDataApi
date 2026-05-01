@@ -19,12 +19,9 @@ internal sealed class ArtistRepository : IArtistRepository
 
     public void Add(ArtistEntity artist)
     {
-        ArtistEntity? existing = null;
-
-        if (!string.IsNullOrWhiteSpace(artist.MusicBrainzID))
-            existing = FindByMusicBrainzID(artist.MusicBrainzID);
-
-        existing ??= FindByName(artist.Name);
+        ArtistEntity? existing = !string.IsNullOrWhiteSpace(artist.MusicBrainzID)
+            ? FindByMusicBrainzID(artist.MusicBrainzID)
+            : FindByName(artist.Name);
 
         if (existing is not null)
         {

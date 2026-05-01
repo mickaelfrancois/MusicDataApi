@@ -21,14 +21,12 @@ internal sealed class AlbumRepository : IAlbumRepository
 
     public void Add(AlbumEntity album)
     {
-        AlbumEntity? existing = null;
-
-        if (!string.IsNullOrWhiteSpace(album.MusicBrainzID))
-            existing = FindByMusicBrainzID(album.MusicBrainzID);
-
-        existing ??= _collection.FindOne(
-            "LOWER($.Name) = @0",
-            (album.Name ?? string.Empty).ToLowerInvariant());
+        AlbumEntity? existing = !string.IsNullOrWhiteSpace(album.MusicBrainzID)
+            ? FindByMusicBrainzID(album.MusicBrainzID)
+            : _collection.FindOne(
+                "LOWER($.Name) = @0 AND LOWER($.Artist) = @1",
+                (album.Name ?? string.Empty).ToLowerInvariant(),
+                (album.Artist ?? string.Empty).ToLowerInvariant());
 
         if (existing is not null)
         {
