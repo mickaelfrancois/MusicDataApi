@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Audit clean-code & architecture — MusicDataApi (2026-05-01)</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --p0: #cf222e;
+    --p1: #bf8700;
+    --p2: #1f883d;
+    --link: #0969da;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 880px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.55;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+  header .meta { color: var(--muted); font-size: .9rem; }
+  h2 {
+    margin-top: 2.2rem;
+    padding-bottom: .25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 1.25rem;
+  }
+  h3 {
+    margin-top: 1.6rem;
+    font-size: 1.05rem;
+  }
+  h2 .badge {
+    display: inline-block;
+    padding: .1rem .55rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    color: white;
+    margin-right: .5rem;
+    vertical-align: 1px;
+  }
+  .p0 .badge { background: var(--p0); }
+  .p1 .badge { background: var(--p1); }
+  .p2 .badge { background: var(--p2); }
+  code {
+    background: var(--code-bg);
+    padding: .12em .35em;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .87em;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: .75rem 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: .85rem;
+  }
+  ol, ul { padding-left: 1.4rem; }
+  li { margin: .35rem 0; }
+  .item {
+    margin: 1rem 0 1.2rem;
+    padding-left: .25rem;
+  }
+  .item-title {
+    font-weight: 600;
+  }
+  .file {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .85em;
+  }
+  .summary {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .8rem 1.1rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .summary table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  .summary td { padding: .25rem .4rem; border-bottom: 1px solid var(--border); }
+  .summary tr:last-child td { border-bottom: none; }
+  .summary td:first-child { font-weight: 600; width: 60px; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Audit clean-code &amp; architecture — MusicDataApi</h1>
+  <div class="meta">Date : 2026-05-01 · Branche d'audit : <code>audit/p0-fixes</code> · Commit de référence : <code>1f60ea7</code></div>
+</header>
+
+<section class="summary">
+  <strong>Synthèse</strong>
+  <table>
+    <tr><td>P0</td><td>7 bugs critiques (rate-limit, mapping, indexes, LiteDB, race condition)</td></tr>
+    <tr><td>P1</td><td>10 chantiers d'architecture (duplication handlers, layering, code mort)</td></tr>
+    <tr><td>P2</td><td>16 points clean-code (DTOs, naming, secrets, tests)</td></tr>
+  </table>
+</section>
+
+<h2 class="p0"><span class="badge">P0</span>Bugs critiques</h2>
+<p>À corriger avant toute refacto. Chaque fix est isolé et tient en quelques lignes.</p>
+
+<div class="item">
+  <div class="item-title">1. Rate-limiting lyrics 1000× trop lent</div>
+  <div class="file">MusicData.Infrastructure/Services/LyricsAggregator.cs:33,35</div>
+  <p><code>TimeSpan.FromSeconds(cfg.PerMilliSeconds)</code> au lieu de <code>FromMilliseconds</code>. La config dit <code>(10 req / 1000 ms)</code> → effectif <code>(10 req / 1000 s)</code>. À aligner sur <code>MusicAggregator.cs:33</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">2. Clé de rate-limit CoverArt incorrecte</div>
+  <div class="file">MusicData.Infrastructure/ConfigureServices.cs:160</div>
+  <p><code>rateLimitOptions.ServiceLimits["covertart"] = …</code>. Le dictionnaire est indexé par <code>serviceType.Name.ToLowerInvariant()</code> (<code>MusicAggregator.cs:30</code>). Le type est <code>CoverArtService</code> → clé attendue <code>"coverartservice"</code>. CoverArt tombe donc dans le fallback <code>(1 req / 1 ms)</code> = pas de limite. Aligner les autres clés sur le pattern <code>&lt;typename&gt;service</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">3. Casse incohérente sur le HttpClient nommé <code>lyricsOvh</code></div>
+  <div class="file">MusicData.Infrastructure/ConfigureServices.cs:121 ↔ Services/LyricsOvh/LyricsOvhService.cs:10</div>
+  <p>Enregistré <code>"lyricsOvh"</code> et injecté <code>[FromKeyedServices("lyricsovh")]</code>. À uniformiser (de toute façon <code>[FromKeyedServices]</code> est redondant avec <code>AddHttpClient&lt;TImpl&gt;(name)</code> qui passe déjà l'<code>HttpClient</code> typé — voir P2-7).</p>
+</div>
+
+<div class="item">
+  <div class="item-title">4. Le mapper artiste perd des champs au cache</div>
+  <div class="file">MusicData.Application/Mappers/ArtistMapper.cs:15-84 + MusicData.Domain/Entities/ArtistEntity.cs</div>
+  <p><code>ArtistMapper</code> ne mappe pas <code>Wikipedia</code>, et <code>ArtistEntity</code> n'a pas <code>TikTok</code> / <code>Threads</code> / <code>SongKick</code> / <code>SoundCloud</code> / <code>Imdb</code> / <code>Fanart4Url</code> / <code>Fanart5Url</code> alors que <code>ArtistDto</code> les expose. Cycle : 1ʳᵉ requête → DTO complet ; entité persistée tronquée ; 2ᵉ requête → cache hit → DTO appauvri. <strong>Le cache abîme silencieusement les données.</strong></p>
+</div>
+
+<div class="item">
+  <div class="item-title">5. <code>EnsureIndex(unique: true)</code> sur <code>ArtistEntity.Name</code></div>
+  <div class="file">MusicData.Infrastructure/Repositories/ArtistRepository.cs:15</div>
+  <p>Deux artistes peuvent légitimement avoir le même nom (homonymes / artistes locaux/nationaux) et MusicBrainz les distingue par MBID. La contrainte unique sur <code>Name</code> jettera à l'insertion. Garder unique uniquement sur <code>MusicBrainzID</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">6. <code>StringComparison.InvariantCultureIgnoreCase</code> dans les expressions LiteDB</div>
+  <div class="file">ArtistRepository.cs:25,27,52,58 · AlbumRepository.cs:27,29,54,60-61 · LyricsRepository.cs:24-25,50-51</div>
+  <p>LiteDB traduit ces expressions en BSON queries et n'honore pas l'enum <code>StringComparison</code> — c'est ignoré ou rendu en comparaison ordinale. Corriger via <code>BsonExpression.Create("LOWER($.Field) = @0", value.ToLowerInvariant())</code> ou normaliser à l'écriture (champ <code>NameLower</code>).</p>
+</div>
+
+<div class="item">
+  <div class="item-title">7. Race condition cache-aside</div>
+  <div class="file">Tous les handlers Get* (Application/Features/...)</div>
+  <p>Séquence <code>repo.Get</code> → <code>aggregator.Get</code> → <code>repo.Add</code> non atomique. Deux requêtes concurrentes sur le même artiste inconnu déclenchent 2 appels externes complets puis 2 inserts (dont un échouera ou écrasera l'autre). Court terme : verrou par clé via <code>ConcurrentDictionary&lt;string, SemaphoreSlim&gt;</code>. Plus long terme : <code>IMemoryCache</code>/single-flight.</p>
+</div>
+
+<h2 class="p1"><span class="badge">P1</span>Architecture &amp; duplication</h2>
+
+<div class="item">
+  <div class="item-title">1. Les 4 feature handlers sont du copier-coller</div>
+  <p><code>GetArtistByName</code>, <code>GetArtistByMusicBrainzId</code>, <code>GetAlbumByName</code>, <code>GetAlbumByMusicBrainzId</code> (et largement <code>GetLyrics</code>) implémentent exactement le même squelette. Remplacer par un <code>CachedReadHandler&lt;TKey, TDto, TEntity&gt;</code> paramétré par 3 délégués (lookup cache, fetch externe, persistance). Diminuera ~200 lignes et garantira cohérence métriques/logs.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">2. Les 2 aggregators sont 90 % identiques</div>
+  <p><code>MusicAggregator</code> et <code>LyricsAggregator</code> partagent la construction du dictionnaire de <code>TokenBucketRateLimiter</code>, le pattern <code>Safe*Async</code>. Extraire une classe de base <code>RateLimitedAggregator&lt;TService&gt;</code> ou un helper <code>RateLimitedRunner</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">3. La merge-logic <code>BuildMergedArtist</code>/<code>BuildMergedAlbum</code> est artisanale et fragile</div>
+  <div class="file">MusicAggregator.cs:184-281</div>
+  <p>~30 champs énumérés à la main avec <code>FirstNonEmpty</code> / <code>FirstGreaterThanZero</code>. Tout nouveau champ DTO doit être ajouté ici sinon il est silencieusement perdu (cf. P0-4). Soit Source Generator, soit merge réflexif <code>MergeStrings(items, dto =&gt; dto.X)</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">4. Layering cassé : Domain dépend de LiteDB</div>
+  <div class="file">MusicData.Domain/MusicData.Domain.csproj:10</div>
+  <p>Référence <code>LiteDB</code>. Le domaine ne devrait pas connaître la persistance. Aucune des entités n'utilise d'attribut LiteDB — la dépendance peut probablement être supprimée et déplacée dans Infrastructure.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">5. Fuite d'abstraction dans <code>MusicAggregator</code></div>
+  <div class="file">MusicAggregator.cs:45,115</div>
+  <p><code>_services.OfType&lt;MusicBrainzService&gt;().FirstOrDefault()!</code> — l'aggregator connaît la classe concrète d'un service. Le rôle "résoudre nom→MBID" mérite sa propre interface <code>IMusicBrainzLookup</code>. Sinon impossible de tester / remplacer MusicBrainz, et risque de NRE.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">6. Code mort à supprimer</div>
+  <ul>
+    <li><code>MusicData.Api/Endpoints/HealthEndpoints.cs</code> (classe <code>HealthEndpoints2</code>, jamais appelée)</li>
+    <li><code>MusicData.Application/Interfaces/IDataContext.cs</code> (interface vide)</li>
+    <li><code>MusicData.Infrastructure/LiteDataContext.cs</code> (ni enregistrée ni résolue)</li>
+    <li><code>MusicData.Infrastructure/Utilities/ObjectDumper.cs</code> (aucun usage)</li>
+    <li><code>MusicData.Shared/Requests/GetArtistRequest.cs</code> (aucun usage)</li>
+    <li>Méthodes <code>Update</code>/<code>Delete</code> des trois repositories : aucun appelant</li>
+    <li><code>MusicData.Shared/Responses/</code> : dossier vide</li>
+    <li><code>MusicDataApi/Dockerfile.original</code></li>
+  </ul>
+</div>
+
+<div class="item">
+  <div class="item-title">7. Endpoints : duplication transversale</div>
+  <p>Les 5 <code>Map*</code> répètent : validation longueurs (255/36), <code>RequireAuthorization</code>/<code>RequireRateLimiting</code>, démarrage d'<code>Activity</code>, headers <code>Cache-Control</code>/<code>Vary</code>. Extraire <code>MapGetCached(...)</code> + <code>IEndpointFilter</code> pour les bornes. L'<code>Activity</code> manuelle peut être déléguée à <code>AddAspNetCoreInstrumentation</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">8. Configuration HTTP client : 6× le même bloc</div>
+  <div class="file">Infrastructure/ConfigureServices.cs:59-149</div>
+  <p>Extraire <code>services.AddExternalHttpClient&lt;IService, TImpl, TSettings&gt;("name")</code> qui fait BaseAddress, Timeout, UA, decompression et binding <code>IOptions&lt;TSettings&gt;</code> en une ligne.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">9. <code>RateLimitOptions</code> codé en dur dans <code>AddServices</code></div>
+  <div class="file">ConfigureServices.cs:154-164</div>
+  <p>Les seuils sont hard-codés en C# alors qu'on a déjà <code>IConfiguration</code>. Déplacer sous <code>Services:&lt;name&gt;:RateLimit</code> et binder via <code>Configure&lt;RateLimitOptions&gt;</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">10. <code>_concurrencySemaphore</code> static avec un état d'instance</div>
+  <p>Sur <code>MusicBrainz</code> volontaire (single-flight global), sur <code>LastFm</code>/<code>Fanart</code> probablement pas voulu (capa = 5). De plus, ce verrou fait doublon avec le <code>TokenBucketRateLimiter</code> côté aggregator. Choisir : 1 mécanisme par dimension (concurrence vs débit).</p>
+</div>
+
+<h2 class="p2"><span class="badge">P2</span>Clean code</h2>
+
+<div class="item">
+  <div class="item-title">1. <code>Origin</code> est une string libre</div>
+  <p>Valeurs : <code>"Cache" | "Aggregated" | "NotFound" | "LyricsOvh" | …</code>. Remplacer par un <code>enum DataOrigin</code> sérialisé en string.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">2. DTO/Entity divergent silencieusement</div>
+  <p>Au-delà de l'<code>ArtistMapper</code>, <code>AlbumDto</code> et <code>AlbumEntity</code> ne sont pas symétriques. Test de mapping round-trip <code>Dto→Entity→Dto</code> qui échoue dès qu'un champ n'est pas symétrique.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">3. Les 3 repositories partagent un pattern <code>Add</code> quasi identique</div>
+  <p>Logique "find existing → upsert avec UpdateDateTime/Version" répétée. Base <code>LiteDbRepository&lt;TEntity&gt;</code> avec une méthode abstraite <code>FindExisting(TEntity)</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">4. Domain entities polluées par champs inutilisés</div>
+  <p><code>ArtistEntity.BiographyFR / FanartsCount / PicturesCount / LogosCount / BannersCount / BornYear</code> ; <code>AlbumEntity.CoversCount</code> : aucune écriture/lecture.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">5. Public statics mutables dans <code>Levenshtein</code></div>
+  <p><code>Levenshtein.IgnoreCase</code> est <code>public static</code> et mutable. Risque de contamination entre tests/threads. <code>t.Substring(j-1,1) == s.Substring(i-1,1)</code> peut être <code>t[j-1] == s[i-1]</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">6. <code>Telemetry</code> en static — testable seulement via état global</div>
+  <p>OK pour l'usage actuel, mais bascule sur <code>IMeterFactory</code> nécessaire pour des assertions en test.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">7. Combinaison <code>AddHttpClient&lt;TImpl&gt;(name)</code> + <code>[FromKeyedServices(name)] HttpClient</code></div>
+  <p>Redondant. Le client typé reçoit déjà son <code>HttpClient</code> via <code>ITypedHttpClientFactory</code>. Soit retirer l'attribut, soit utiliser <code>AddHttpClient(name).AddTypedClient&lt;&gt;()</code> explicitement.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">8. <code>EnsureIndex</code> à chaque résolution de scope</div>
+  <p>Repositories scoped → <code>EnsureIndex</code> appelé à chaque requête HTTP. Idempotent mais inutile. Faire un <code>IndexInitializer</code> <code>IHostedService</code> au démarrage.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">9. Coquilles &amp; noms approximatifs</div>
+  <ul>
+    <li><code>IMusicAggregator.GetAlbumByMusicBrainzIdsync</code> (au lieu de <code>…IdAsync</code>)</li>
+    <li>Clé HttpClient <code>"covertart"</code> (typo) — <code>ConfigureServices.cs:106</code></li>
+    <li>Classe <code>HealthEndpoints2</code></li>
+    <li><code>LyricsOvhRootobject</code> (camelcase étrange)</li>
+  </ul>
+</div>
+
+<div class="item">
+  <div class="item-title">10. <code>Enabled</code> dupliqué partout</div>
+  <p>Chaque service a <code>public bool Enabled { get; set; } = settings.Value.Enabled;</code> et <code>if (!Enabled) return null;</code>. Soit ne pas enregistrer le service du tout quand <code>Enabled=false</code> (idéal), soit retirer la propriété.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">11. <code>Fanart.FanartImage.Score</code> recalculé sur chaque accès</div>
+  <p>Parse de <code>Likes</code> à chaque getter. Préférer un champ calculé une fois.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">12. <code>appsettings.Development.json</code> versionne des clés réelles</div>
+  <p>LastFm, Fanart, New Relic insert key, ApiKey serveur, et <code>MusicDataApi.http</code> contient une autre clé. Tout déplacer dans User Secrets et faire tourner les clés exposées.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">13. <code>MusicData.Shared.csproj</code> réfère <code>MusicData.Domain</code></div>
+  <p>Brouille la sémantique (un projet "Shared" devrait être feuille). Soit fusionner <code>Shared</code> dans <code>Application</code>, soit déplacer ce qui dépend de Domain hors de Shared.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">14. <code>app.UseAuthorization()</code> appelé sans middleware d'erreur</div>
+  <div class="file">Program.cs:55-58</div>
+  <p>Pas de <code>UseExceptionHandler</code> ni de <code>ProblemDetails</code> → 500 "blanc" en cas d'exception non gérée. Ajouter <code>app.UseExceptionHandler()</code> + <code>services.AddProblemDetails()</code>.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">15. <code>services.AddAuthorization()</code> deux fois</div>
+  <div class="file">Infrastructure/ConfigureServices.cs:228-237</div>
+  <p>Un <code>AddAuthorization(o =&gt; …)</code> puis un <code>AddAuthorization()</code> nu juste après. Le second est inutile.</p>
+</div>
+
+<div class="item">
+  <div class="item-title">16. Pas de tests</div>
+  <p>Pas de projet <code>*.Tests</code>. Les bugs P0-1, P0-2, P0-4 auraient été pris par un seul test d'intégration end-to-end "round-trip cache".</p>
+</div>
+
+<h2>Plan d'attaque suggéré</h2>
+<ol>
+  <li><strong>PR "P0"</strong> — fixe les 7 bugs critiques. Indépendants les uns des autres, ≤ 5 lignes chacun.</li>
+  <li><strong>PR "ménage"</strong> — supprime tout le code mort de P1-6 + P2-9 (~ 6 fichiers + 1 dépendance LiteDB).</li>
+  <li><strong>PR "DRY handlers"</strong> — extrait <code>CachedReadHandler&lt;…&gt;</code> (P1-1) et l'<code>AddExternalHttpClient</code> helper (P1-8). Plus gros gain de lisibilité avec peu de risque.</li>
+  <li><strong>PR "tests"</strong> — projet xUnit + 1 test par feature handler en mockant l'aggregator + 1 test de round-trip mapper. Sans ça, les futurs ajouts de champs DTO continueront de pourrir le cache silencieusement.</li>
+  <li>Le reste (P1-3 merge réflexif, P1-9 config externalisée, P2 divers) au rythme des features.</li>
+</ol>
+
+<footer>
+  Audit généré le 2026-05-01 — branche <code>audit/p0-fixes</code>.
+</footer>
+
+</body>
+</html>
