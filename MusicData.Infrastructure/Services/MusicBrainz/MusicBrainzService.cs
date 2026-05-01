@@ -9,7 +9,7 @@ using MusicData.Shared;
 
 namespace MusicData.Infrastructure.Services.MusicBrainz;
 
-public partial class MusicBrainzService([FromKeyedServices("musicbrainz")] HttpClient httpClient, ILogger<MusicBrainzService> logger, IOptions<MusicBrainzSettings> settings) : IMusicService
+public partial class MusicBrainzService([FromKeyedServices("musicbrainz")] HttpClient httpClient, ILogger<MusicBrainzService> logger, IOptions<MusicBrainzSettings> settings) : IMusicService, IMusicBrainzLookup
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;
 

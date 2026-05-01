@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.MusicBrainz;
 
-public class MusicBrainzSettings
+public class MusicBrainzSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 

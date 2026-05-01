@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Application.DTOs;
 
-public class LyricsDto
+public class LyricsDto : IOriginAware
 {
     public string Origin { get; set; } = string.Empty;
 

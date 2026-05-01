@@ -1,10 +1,9 @@
-﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
+using MusicData.Application.Features.Common;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
-using MusicData.Shared.Telemetry;
 
 namespace MusicData.Application.Features.Lyrics;
 
@@ -13,39 +12,38 @@ public interface IGetLyrics
     Task<LyricsDto?> HandleAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken = default);
 }
 
-public sealed class GetLyrics(ILyricsRepository lyricsRepository,
-    ILyricsAggregator lyricsAggregator,
-    ILogger<GetLyrics> logger) : IGetLyrics
+public sealed record LyricsKey(string Title, string ArtistName, string AlbumName, int Duration);
+
+public sealed class GetLyrics(
+    ILyricsRepository repository,
+    ILyricsAggregator aggregator,
+    IKeyedLocker locker,
+    ILogger<GetLyrics> logger)
+    : CachedReadHandler<LyricsKey, LyricsDto, LyricsEntity>(locker, logger), IGetLyrics
 {
-    public async Task<LyricsDto?> HandleAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken = default)
+    public Task<LyricsDto?> HandleAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken = default)
+        => HandleAsync(new LyricsKey(title, artistName, albumName, duration), cancellationToken);
+
+    protected override string EntityKind => "lyrics";
+
+    protected override bool IsValid(LyricsKey key)
+        => !string.IsNullOrWhiteSpace(key.Title) && !string.IsNullOrEmpty(key.ArtistName);
+
+    protected override LyricsEntity? GetCachedEntity(LyricsKey key) => repository.Get(key.Title, key.ArtistName);
+
+    protected override Task<LyricsDto?> FetchAsync(LyricsKey key, CancellationToken cancellationToken)
+        => aggregator.GetLyricsAsync(key.Title, key.ArtistName, key.AlbumName, key.Duration, cancellationToken);
+
+    protected override LyricsDto MapToDto(LyricsEntity entity) => entity.ToDto();
+
+    protected override void Persist(LyricsDto dto) => repository.Add(dto.ToEntity());
+
+    protected override string MakeLockKey(LyricsKey key) => $"lyrics:{key.ArtistName.ToLowerInvariant()}:{key.Title.ToLowerInvariant()}";
+
+    protected override void OnNotFound(LyricsKey key)
     {
-        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName))
-            return null;
-
-        LyricsEntity? lyricsEntity = lyricsRepository.Get(title, artistName);
-        if (lyricsEntity is not null)
-        {
-            logger.LogInformation("Lyrics '{Title}' found in cache", title);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "cache" } });
-            LyricsDto dto = lyricsEntity.ToDto();
-            dto.Origin = "Cache";
-            return dto;
-        }
-
-        LyricsDto? lyrics = await lyricsAggregator.GetLyricsAsync(title, artistName, albumName, duration, cancellationToken);
-        if (lyrics is null)
-        {
-            logger.LogInformation("Lyrics '{Title}' not found in any music service.", title);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "not_found" } });
-            lyrics = new LyricsDto { Title = title, ArtistName = artistName, Origin = "NotFound" };
-            lyricsRepository.Add(lyrics!.ToEntity());
-            return null;
-        }
-
-        lyricsRepository.Add(lyrics!.ToEntity());
-        logger.LogInformation("Lyrics '{Title}' cached", title);
-        Telemetry.Requests.Add(1, new TagList { { "entity", "lyrics" }, { "result", "external" } });
-
-        return lyrics;
+        // Negative cache marker so we don't re-hit external services for known-missing lyrics.
+        LyricsDto marker = new() { Title = key.Title, ArtistName = key.ArtistName, Origin = "NotFound" };
+        Persist(marker);
     }
 }

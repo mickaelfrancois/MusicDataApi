@@ -1,4 +1,4 @@
-﻿using LiteDB;
+using LiteDB;
 using MusicData.Application.Interfaces;
 using MusicData.Domain.Entities;
 
@@ -12,19 +12,16 @@ internal sealed class ArtistRepository : IArtistRepository
     public ArtistRepository(ILiteDatabase database)
     {
         _collection = database.GetCollection<ArtistEntity>(CollectionName);
-        _collection.EnsureIndex(x => x.Name, unique: true);
+        _collection.EnsureIndex(x => x.Name, unique: false);
         _collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
 
 
     public void Add(ArtistEntity artist)
     {
-        ArtistEntity? existing = null;
-
-        if (!string.IsNullOrWhiteSpace(artist.MusicBrainzID))
-            existing = _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(artist.MusicBrainzID, StringComparison.InvariantCultureIgnoreCase));
-
-        existing ??= _collection.FindOne(c => c.Name.Equals(artist.Name, StringComparison.InvariantCultureIgnoreCase));
+        ArtistEntity? existing = !string.IsNullOrWhiteSpace(artist.MusicBrainzID)
+            ? FindByMusicBrainzID(artist.MusicBrainzID)
+            : FindByName(artist.Name);
 
         if (existing is not null)
         {
@@ -41,26 +38,16 @@ internal sealed class ArtistRepository : IArtistRepository
     }
 
 
-    public void Delete(int id)
-    {
-        _collection.Delete(id);
-    }
+    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
 
 
-    public ArtistEntity? GetByMusicBrainzID(string musicBrainzID)
-    {
-        return _collection.FindOne(c => c.MusicBrainzID != null && c.MusicBrainzID.Equals(musicBrainzID, StringComparison.InvariantCultureIgnoreCase));
-    }
+    public ArtistEntity? GetByName(string name) => FindByName(name);
 
 
-    public ArtistEntity? GetByName(string name)
-    {
-        return _collection.FindOne(c => c.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
-    }
+    private ArtistEntity? FindByMusicBrainzID(string musicBrainzID) =>
+        _collection.FindOne("LOWER($.MusicBrainzID) = @0", (musicBrainzID ?? string.Empty).ToLowerInvariant());
 
 
-    public void Update(ArtistEntity artist)
-    {
-        _collection.Update(artist);
-    }
+    private ArtistEntity? FindByName(string name) =>
+        _collection.FindOne("LOWER($.Name) = @0", (name ?? string.Empty).ToLowerInvariant());
 }

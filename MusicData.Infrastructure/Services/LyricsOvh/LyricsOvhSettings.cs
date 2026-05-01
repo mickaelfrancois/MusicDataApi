@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.LyricsOvh;
 
-public class LyricsOvhSettings
+public class LyricsOvhSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 

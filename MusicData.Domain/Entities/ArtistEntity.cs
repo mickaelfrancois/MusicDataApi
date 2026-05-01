@@ -30,6 +30,16 @@ public class ArtistEntity
 
     public string? AllMusic { get; set; }
 
+    public string? TikTok { get; set; }
+
+    public string? Threads { get; set; }
+
+    public string? SongKick { get; set; }
+
+    public string? SoundCloud { get; set; }
+
+    public string? Imdb { get; set; }
+
     public string? LastFM { get; set; }
 
     public string? Discogs { get; set; }
@@ -43,6 +53,10 @@ public class ArtistEntity
     public string? Fanart2Url { get; set; }
 
     public string? Fanart3Url { get; set; }
+
+    public string? Fanart4Url { get; set; }
+
+    public string? Fanart5Url { get; set; }
 
     public string? BannerUrl { get; set; }
 

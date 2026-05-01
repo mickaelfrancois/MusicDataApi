@@ -1,13 +1,12 @@
-﻿using System.Net;
-using System.Threading.RateLimiting;
+﻿using System.Threading.RateLimiting;
 using LiteDB;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MusicData.Application.Interfaces;
+using MusicData.Infrastructure.Concurrency;
 using MusicData.Infrastructure.HealthChecks;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Repositories;
@@ -41,6 +40,8 @@ public static class ConfigureServices
         services.AddScoped<IAlbumRepository, AlbumRepository>();
         services.AddScoped<ILyricsRepository, LyricsRepository>();
 
+        services.AddSingleton<IKeyedLocker, KeyedLocker>();
+
         services.AddHealthChecks()
             .AddCheck<LiteDbHealthCheck>("litedb", tags: ["ready"]);
 
@@ -49,119 +50,32 @@ public static class ConfigureServices
 
     public static IServiceCollection AddServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<LastFmSettings>(configuration.GetSection("Services:LastFM"));
-        services.Configure<MusicBrainzSettings>(configuration.GetSection("Services:MusicBrainz"));
-        services.Configure<FanartSettings>(configuration.GetSection("Services:Fanart"));
-        services.Configure<CoverArtSettings>(configuration.GetSection("Services:CoverArt"));
-        services.Configure<LyricsOvhSettings>(configuration.GetSection("Services:LyricsOvh"));
-        services.Configure<LrcLibSettings>(configuration.GetSection("Services:LrcLib"));
+        services.AddExternalHttpClient<IMusicService, LastFmService, LastFmSettings>(
+            configuration, "lastfm", "Services:LastFM",
+            client => client.DefaultRequestHeaders.TryAddWithoutValidation("Content-type", "application/json"));
 
-        services.AddHttpClient<IMusicService, LastFmService>("lastfm", (sp, client) =>
-        {
-            LastFmSettings settings = sp.GetRequiredService<IOptions<LastFmSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Content-type", "application/json");
-            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate");
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-            .ConfigurePrimaryHttpMessageHandler(() =>
-            {
-                return new SocketsHttpHandler
-                {
-                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-                };
-            });
+        services.AddExternalHttpClient<IMusicService, MusicBrainzService, MusicBrainzSettings>(
+            configuration, "musicbrainz", "Services:MusicBrainz");
 
-        services.AddHttpClient<IMusicService, MusicBrainzService>("musicbrainz", (sp, client) =>
-        {
-            MusicBrainzSettings settings = sp.GetRequiredService<IOptions<MusicBrainzSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() =>
-        {
-            return new SocketsHttpHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-        });
+        services.AddExternalHttpClient<IMusicService, FanartService, FanartSettings>(
+            configuration, "fanart", "Services:Fanart");
 
-        services.AddHttpClient<IMusicService, FanartService>("fanart", (sp, client) =>
-        {
-            FanartSettings settings = sp.GetRequiredService<IOptions<FanartSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() =>
-        {
-            return new SocketsHttpHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-        });
+        services.AddExternalHttpClient<IMusicService, CoverArtService, CoverArtSettings>(
+            configuration, "covertart", "Services:CoverArt");
 
-        services.AddHttpClient<IMusicService, CoverArtService>("covertart", (sp, client) =>
-        {
-            CoverArtSettings settings = sp.GetRequiredService<IOptions<CoverArtSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() =>
-        {
-            return new SocketsHttpHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-        });
+        services.AddExternalHttpClient<ILyricsService, LyricsOvhService, LyricsOvhSettings>(
+            configuration, "lyricsovh", "Services:LyricsOvh");
 
-        services.AddHttpClient<ILyricsService, LyricsOvhService>("lyricsOvh", (sp, client) =>
-        {
-            LyricsOvhSettings settings = sp.GetRequiredService<IOptions<LyricsOvhSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() =>
-        {
-            return new SocketsHttpHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-        });
+        services.AddExternalHttpClient<ILyricsService, LrcLibService, LrcLibSettings>(
+            configuration, "lrclib", "Services:LrcLib");
 
-        services.AddHttpClient<ILyricsService, LrcLibService>("lrclib", (sp, client) =>
-        {
-            LrcLibSettings settings = sp.GetRequiredService<IOptions<LrcLibSettings>>().Value;
-            client.BaseAddress = new Uri(settings.BaseUrl);
-            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
-            client.DefaultRequestHeaders.UserAgent.TryParseAdd("RoK/1.0 (rok@francois.ovh)");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() =>
-        {
-            return new SocketsHttpHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            };
-        });
+        services.AddSingleton<IMusicBrainzLookup>(sp =>
+            sp.GetRequiredService<IEnumerable<IMusicService>>().OfType<MusicBrainzService>().Single());
 
         services.AddSingleton<IMusicAggregator, MusicAggregator>();
         services.AddSingleton<ILyricsAggregator, LyricsAggregator>();
 
-        RateLimitOptions rateLimitOptions = new();
-        rateLimitOptions.ServiceLimits["musicbrainzservice"] = (MaxRequests: 1, PerMilliSeconds: 1200);
-        rateLimitOptions.ServiceLimits["lastfmservice"] = (MaxRequests: 4, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["fanartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["lyricsovhservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["lrclibservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["covertart"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        services.Configure<RateLimitOptions>(o =>
-        {
-            o.ServiceLimits = rateLimitOptions.ServiceLimits;
-        });
+        services.Configure<RateLimitOptions>(configuration.GetSection("ServiceRateLimits"));
 
         return services;
     }

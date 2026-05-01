@@ -15,13 +15,10 @@ public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpCli
 
     public bool Enabled { get; set; } = settings.Value.Enabled;
 
-    private static readonly SemaphoreSlim _concurrencySemaphore = new(initialCount: 5);
-    private static readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(10);
 
-
-    public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
+    public Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
-        return null;
+        return Task.FromResult<ArtistDto?>(null);
     }
 
 
@@ -33,15 +30,8 @@ public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpCli
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 
-        bool entered = false;
-        AlbumDto? album = null;
-
         try
         {
-            entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
-            if (!entered)
-                return null;
-
             string requestUrl = $"{_apiURL}/{Uri.EscapeDataString(releaseMusicBrainzId)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
@@ -60,7 +50,7 @@ public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpCli
             }
 
             logger.LogDebug("Album found: {Album}", releaseMusicBrainzId);
-            album = CoverArtMapper.Map(root);
+            return CoverArtMapper.Map(root);
         }
         catch (OperationCanceledException ex)
         {
@@ -72,13 +62,6 @@ public class CoverArtService([FromKeyedServices("covertart")] HttpClient httpCli
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
             return null;
         }
-        finally
-        {
-            if (entered)
-                _concurrencySemaphore.Release();
-        }
-
-        return album;
     }
 }
 

@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.LastFm;
 
-public class LastFmSettings
+public class LastFmSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 

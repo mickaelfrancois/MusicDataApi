@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,10 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MusicData.Domain\MusicData.Domain.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Responses\" />
   </ItemGroup>
 
 </Project>

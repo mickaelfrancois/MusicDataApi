@@ -1,10 +1,9 @@
-﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
+using MusicData.Application.Features.Common;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
-using MusicData.Shared.Telemetry;
 
 namespace MusicData.Application.Features.Artists;
 
@@ -13,38 +12,25 @@ public interface IGetArtistByName
     Task<ArtistDto?> HandleAsync(string artistName, CancellationToken cancellationToken = default);
 }
 
-public sealed class GetArtistByName(IArtistRepository artistRepository,
-    IMusicAggregator musicAggregator,
-    ILogger<GetArtistByName> logger) : IGetArtistByName
+public sealed class GetArtistByName(
+    IArtistRepository repository,
+    IMusicAggregator aggregator,
+    IKeyedLocker locker,
+    ILogger<GetArtistByName> logger)
+    : CachedReadHandler<string, ArtistDto, ArtistEntity>(locker, logger), IGetArtistByName
 {
-    public async Task<ArtistDto?> HandleAsync(string artistName, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(artistName))
-            return null;
+    protected override string EntityKind => "artist";
 
-        ArtistEntity? artistEntity = artistRepository.GetByName(artistName!);
+    protected override bool IsValid(string artistName) => !string.IsNullOrWhiteSpace(artistName);
 
-        if (artistEntity is not null)
-        {
-            logger.LogInformation("Artist '{ArtistName}' found in cache", artistName);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "cache" } });
-            ArtistDto dto = artistEntity.ToDto();
-            dto.Origin = "Cache";
-            return dto;
-        }
+    protected override ArtistEntity? GetCachedEntity(string artistName) => repository.GetByName(artistName);
 
-        ArtistDto? artist = await musicAggregator.GetArtistByNameAsync(artistName, cancellationToken);
-        if (artist is null)
-        {
-            logger.LogInformation("Artist '{Name}' not found in any music service.", artistName);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "not_found" } });
-            return null;
-        }
+    protected override Task<ArtistDto?> FetchAsync(string artistName, CancellationToken cancellationToken)
+        => aggregator.GetArtistByNameAsync(artistName, cancellationToken);
 
-        artistRepository.Add(artist!.ToEntity());
-        logger.LogInformation("Artist '{ArtistName}' cached", artistName);
-        Telemetry.Requests.Add(1, new TagList { { "entity", "artist" }, { "result", "external" } });
+    protected override ArtistDto MapToDto(ArtistEntity entity) => entity.ToDto();
 
-        return artist;
-    }
+    protected override void Persist(ArtistDto dto) => repository.Add(dto.ToEntity());
+
+    protected override string MakeLockKey(string artistName) => $"artist:byname:{artistName.ToLowerInvariant()}";
 }

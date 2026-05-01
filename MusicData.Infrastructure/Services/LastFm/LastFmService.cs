@@ -15,9 +15,6 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
 
     public bool Enabled { get; set; } = settings.Value.Enabled;
 
-    private static readonly SemaphoreSlim _concurrencySemaphore = new(initialCount: 5);
-    private static readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(10);
-
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
         if (!Enabled)
@@ -26,15 +23,8 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        bool entered = false;
-        ArtistDto? artist = null;
-
         try
         {
-            entered = await _concurrencySemaphore.WaitAsync(_waitTimeout);
-            if (!entered)
-                return null;
-
             string requestUrl = $"{_apiURL}&method=artist.getinfo&mbid={Uri.EscapeDataString(musicBrainzId)}&lang=en";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
@@ -53,7 +43,7 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
             }
 
             logger.LogDebug("Artist found: {Artist}", root.Artist.Name);
-            artist = LastFmMapper.Map(root.Artist);
+            return LastFmMapper.Map(root.Artist);
         }
         catch (OperationCanceledException ex)
         {
@@ -65,13 +55,6 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
             return null;
         }
-        finally
-        {
-            if (entered)
-                _concurrencySemaphore.Release();
-        }
-
-        return artist;
     }
 
 
@@ -83,15 +66,8 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 
-        bool entered = false;
-        AlbumDto? album = null;
-
         try
         {
-            entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
-            if (!entered)
-                return null;
-
             string requestUrl = $"{_apiURL}&method=album.getinfo&mbid={Uri.EscapeDataString(releaseMusicBrainzId)}&lang=en";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
@@ -110,7 +86,7 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
             }
 
             logger.LogDebug("Album found: {Album}", root.Album.Name);
-            album = LastFmMapper.Map(root.Album);
+            return LastFmMapper.Map(root.Album);
         }
         catch (OperationCanceledException ex)
         {
@@ -122,13 +98,6 @@ public class LastFmService([FromKeyedServices("lastfm")] HttpClient httpClient, 
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
             return null;
         }
-        finally
-        {
-            if (entered)
-                _concurrencySemaphore.Release();
-        }
-
-        return album;
     }
 }
 
