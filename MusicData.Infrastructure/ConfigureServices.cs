@@ -61,7 +61,7 @@ public static class ConfigureServices
             configuration, "fanart", "Services:Fanart");
 
         services.AddExternalHttpClient<IMusicService, CoverArtService, CoverArtSettings>(
-            configuration, "covertart", "Services:CoverArt");
+            configuration, "coverart", "Services:CoverArt");
 
         services.AddExternalHttpClient<ILyricsService, LyricsOvhService, LyricsOvhSettings>(
             configuration, "lyricsovh", "Services:LyricsOvh");

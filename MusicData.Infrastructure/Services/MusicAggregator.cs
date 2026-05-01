@@ -73,7 +73,7 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
     }
 
 
-    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken)
+    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
             return null;
