@@ -1,22 +1,15 @@
 ﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 
 namespace MusicData.Infrastructure.Services.LrcLib;
 
-public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LrcLibSettings> settings, ILogger<LrcLibService> logger)
+public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOptions, ILogger<LrcLibService> logger)
     : ILyricsService
 {
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
-
     public async Task<LyricsDto?> GetLyricsAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName) || string.IsNullOrEmpty(albumName))
             return null;
 

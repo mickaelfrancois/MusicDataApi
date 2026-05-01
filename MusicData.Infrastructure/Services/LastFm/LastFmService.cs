@@ -12,13 +12,8 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 {
     private readonly string _apiURL = $"{settings.Value.BaseUrl}?api_key={settings.Value.ApiKey}&format=json";
 
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -59,9 +54,6 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 

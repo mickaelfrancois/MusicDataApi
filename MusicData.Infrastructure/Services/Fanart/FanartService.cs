@@ -10,13 +10,8 @@ namespace MusicData.Infrastructure.Services.Fanart;
 public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<FanartSettings> settings, ILogger<FanartService> logger)
     : IMusicService
 {
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -58,9 +53,6 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseGroupMusicBrainzId))
             return null;
 

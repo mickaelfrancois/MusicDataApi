@@ -12,9 +12,6 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
 {
     private readonly string _apiURL = $"{settings.Value.BaseUrl}/release";
 
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
-
     public Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
         return Task.FromResult<ArtistDto?>(null);
@@ -23,9 +20,6 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 

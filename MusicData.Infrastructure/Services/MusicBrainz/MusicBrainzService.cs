@@ -1,17 +1,14 @@
 ﻿using Hqub.MusicBrainz;
 using Hqub.MusicBrainz.Entities;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
 using MusicData.Shared;
 
 namespace MusicData.Infrastructure.Services.MusicBrainz;
 
-public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrainzService> logger, IOptions<MusicBrainzSettings> settings) : IMusicService, IMusicBrainzLookup
+public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrainzService> logger) : IMusicService, IMusicBrainzLookup
 {
-    public bool Enabled { get; set; } = settings.Value.Enabled;
-
     private static readonly SemaphoreSlim _concurrencySemaphore = new(initialCount: 1);
     private static readonly TimeSpan _waitTimeout = TimeSpan.FromSeconds(10);
 
@@ -20,9 +17,6 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
     public async Task<string?> FindArtistAsync(string name, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
@@ -64,9 +58,6 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
     public async Task<MusicBrainzReleaseInfo?> FindAlbumAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(albumName) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
             return null;
 
@@ -122,9 +113,6 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -168,9 +156,6 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
     public async Task<AlbumDto?> GetAlbumAsync(string releaseMusicBrainzId, string? releaseGroupMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (!Enabled)
-            return null;
-
         if (string.IsNullOrWhiteSpace(releaseMusicBrainzId))
             return null;
 
