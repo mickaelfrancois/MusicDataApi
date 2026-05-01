@@ -118,7 +118,7 @@ public static class ConfigureServices
             };
         });
 
-        services.AddHttpClient<ILyricsService, LyricsOvhService>("lyricsOvh", (sp, client) =>
+        services.AddHttpClient<ILyricsService, LyricsOvhService>("lyricsovh", (sp, client) =>
         {
             LyricsOvhSettings settings = sp.GetRequiredService<IOptions<LyricsOvhSettings>>().Value;
             client.BaseAddress = new Uri(settings.BaseUrl);
