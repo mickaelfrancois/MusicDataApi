@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.CoverArt;
 
-public class CoverArtSettings
+public class CoverArtSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 

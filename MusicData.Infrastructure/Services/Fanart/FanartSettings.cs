@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.Fanart;
 
-public class FanartSettings
+public class FanartSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 

@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Infrastructure.Services.LrcLib;
 
-public class LrcLibSettings
+public class LrcLibSettings : IHttpServiceSettings
 {
     public bool Enabled { get; set; }
 
