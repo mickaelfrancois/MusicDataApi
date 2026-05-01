@@ -12,7 +12,7 @@ internal sealed class ArtistRepository : IArtistRepository
     public ArtistRepository(ILiteDatabase database)
     {
         _collection = database.GetCollection<ArtistEntity>(CollectionName);
-        _collection.EnsureIndex(x => x.Name, unique: true);
+        _collection.EnsureIndex(x => x.Name, unique: false);
         _collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
 
