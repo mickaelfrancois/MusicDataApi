@@ -43,12 +43,6 @@ internal sealed class AlbumRepository : IAlbumRepository
     }
 
 
-    public void Delete(int id)
-    {
-        _collection.Delete(id);
-    }
-
-
     public AlbumEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
 
 
@@ -57,12 +51,6 @@ internal sealed class AlbumRepository : IAlbumRepository
             "LOWER($.Name) = @0 AND LOWER($.Artist) = @1",
             (albumName ?? string.Empty).ToLowerInvariant(),
             (artistName ?? string.Empty).ToLowerInvariant());
-
-
-    public void Update(AlbumEntity album)
-    {
-        _collection.Update(album);
-    }
 
 
     private AlbumEntity? FindByMusicBrainzID(string musicBrainzID) =>

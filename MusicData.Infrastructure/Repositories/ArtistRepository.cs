@@ -38,22 +38,10 @@ internal sealed class ArtistRepository : IArtistRepository
     }
 
 
-    public void Delete(int id)
-    {
-        _collection.Delete(id);
-    }
-
-
     public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) => FindByMusicBrainzID(musicBrainzID);
 
 
     public ArtistEntity? GetByName(string name) => FindByName(name);
-
-
-    public void Update(ArtistEntity artist)
-    {
-        _collection.Update(artist);
-    }
 
 
     private ArtistEntity? FindByMusicBrainzID(string musicBrainzID) =>

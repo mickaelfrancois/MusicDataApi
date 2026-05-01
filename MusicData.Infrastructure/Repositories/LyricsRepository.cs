@@ -36,19 +36,7 @@ internal sealed class LyricsRepository : ILyricsRepository
     }
 
 
-    public void Delete(int id)
-    {
-        _collection.Delete(id);
-    }
-
-
     public LyricsEntity? Get(string title, string artistName) => FindByTitleAndArtist(title, artistName);
-
-
-    public void Update(LyricsEntity lyrics)
-    {
-        _collection.Update(lyrics);
-    }
 
 
     private LyricsEntity? FindByTitleAndArtist(string title, string artistName) =>
