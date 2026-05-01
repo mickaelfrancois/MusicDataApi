@@ -9,6 +9,11 @@ internal sealed class LyricsRepository : ILyricsRepository
     private readonly ILiteCollection<LyricsEntity> _collection;
     private const string CollectionName = "lyrics";
 
+    // Bumped to 2 when P2-2 added AlbumName / Duration to LyricsEntity.
+    // Pre-fix rows (Version = 1) are treated as stale so the handler falls
+    // through to the aggregator and re-populates them with the new fields.
+    private const int SchemaVersion = 2;
+
     public LyricsRepository(ILiteDatabase database)
     {
         _collection = database.GetCollection<LyricsEntity>(CollectionName);
@@ -21,22 +26,21 @@ internal sealed class LyricsRepository : ILyricsRepository
     {
         LyricsEntity? existing = FindByTitleAndArtist(lyrics.Title, lyrics.ArtistName);
 
+        lyrics.UpdateDateTime = DateTime.UtcNow;
+        lyrics.Version = SchemaVersion;
+
         if (existing is not null)
-        {
-            lyrics.UpdateDateTime = DateTime.UtcNow;
-            lyrics.Version = 1;
             _collection.Update(existing.Id, lyrics);
-        }
         else
-        {
-            lyrics.UpdateDateTime = DateTime.UtcNow;
-            lyrics.Version = 1;
             _collection.Insert(lyrics);
-        }
     }
 
 
-    public LyricsEntity? Get(string title, string artistName) => FindByTitleAndArtist(title, artistName);
+    public LyricsEntity? Get(string title, string artistName) => FreshOrNull(FindByTitleAndArtist(title, artistName));
+
+
+    private static LyricsEntity? FreshOrNull(LyricsEntity? entity) =>
+        entity is null || entity.Version < SchemaVersion ? null : entity;
 
 
     private LyricsEntity? FindByTitleAndArtist(string title, string artistName) =>

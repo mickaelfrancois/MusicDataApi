@@ -49,4 +49,31 @@ public class LyricsRepositoryTests : IDisposable
         Assert.NotNull(loaded);
         Assert.Equal("v2", loaded!.PlainLyrics);
     }
+
+    [Fact]
+    public void Get_LegacyVersionRow_IsTreatedAsStaleAndReturnsNull()
+    {
+        // Pre-P2-2 cache rows had Version = 1 and lacked AlbumName / Duration.
+        ILiteCollection<LyricsEntity> raw = _db.GetCollection<LyricsEntity>("lyrics");
+        raw.Insert(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", Version = 1 });
+
+        Assert.Null(_sut.Get("Walk", "Foo Fighters"));
+    }
+
+    [Fact]
+    public void Add_PreservesAlbumNameAndDuration()
+    {
+        _sut.Add(new LyricsEntity
+        {
+            Title = "Walk",
+            ArtistName = "Foo Fighters",
+            AlbumName = "Wasting Light",
+            Duration = 257
+        });
+
+        LyricsEntity? loaded = _sut.Get("Walk", "Foo Fighters");
+        Assert.NotNull(loaded);
+        Assert.Equal("Wasting Light", loaded!.AlbumName);
+        Assert.Equal(257, loaded.Duration);
+    }
 }

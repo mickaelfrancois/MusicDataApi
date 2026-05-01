@@ -17,6 +17,8 @@ public static class LyricsMapper
         {
             ArtistName = entity.ArtistName,
             Title = entity.Title,
+            AlbumName = entity.AlbumName,
+            Duration = entity.Duration,
             PlainLyrics = entity.PlainLyrics,
             SyncLyrics = entity.SyncLyrics
         };
@@ -31,6 +33,8 @@ public static class LyricsMapper
         {
             ArtistName = dto.ArtistName,
             Title = dto.Title,
+            AlbumName = dto.AlbumName,
+            Duration = dto.Duration,
             PlainLyrics = dto.PlainLyrics,
             SyncLyrics = dto.SyncLyrics
         };
