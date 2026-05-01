@@ -21,6 +21,7 @@
     <ProjectReference Include="..\MusicData.Domain\MusicData.Domain.csproj" />
     <ProjectReference Include="..\MusicData.Infrastructure\MusicData.Infrastructure.csproj" />
     <ProjectReference Include="..\MusicData.Shared\MusicData.Shared.csproj" />
+    <ProjectReference Include="..\MusicDataApi\MusicData.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
