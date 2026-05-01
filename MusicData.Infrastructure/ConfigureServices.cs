@@ -72,17 +72,7 @@ public static class ConfigureServices
         services.AddSingleton<IMusicAggregator, MusicAggregator>();
         services.AddSingleton<ILyricsAggregator, LyricsAggregator>();
 
-        RateLimitOptions rateLimitOptions = new();
-        rateLimitOptions.ServiceLimits["musicbrainzservice"] = (MaxRequests: 1, PerMilliSeconds: 1200);
-        rateLimitOptions.ServiceLimits["lastfmservice"] = (MaxRequests: 4, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["fanartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["lyricsovhservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["lrclibservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        rateLimitOptions.ServiceLimits["coverartservice"] = (MaxRequests: 10, PerMilliSeconds: 1000);
-        services.Configure<RateLimitOptions>(o =>
-        {
-            o.ServiceLimits = rateLimitOptions.ServiceLimits;
-        });
+        services.Configure<RateLimitOptions>(configuration.GetSection("ServiceRateLimits"));
 
         return services;
     }

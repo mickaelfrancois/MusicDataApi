@@ -28,8 +28,7 @@ internal class LyricsAggregator : ILyricsAggregator
                 t =>
                 {
                     string key = t.Name.ToLowerInvariant();
-                    if (_rateLimits.ServiceLimits.TryGetValue(key, out (int MaxRequests, int PerMilliSeconds) cfg))
-
+                    if (_rateLimits.ServiceLimits.TryGetValue(key, out ServiceRateLimit? cfg) && cfg is not null)
                         return new TokenBucketRateLimiter(cfg.MaxRequests, TimeSpan.FromMilliseconds(cfg.PerMilliSeconds));
 
                     return new TokenBucketRateLimiter(1, TimeSpan.FromMilliseconds(1));
