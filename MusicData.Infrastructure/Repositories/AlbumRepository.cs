@@ -5,15 +5,19 @@ using MusicData.Domain.Entities;
 namespace MusicData.Infrastructure.Repositories;
 
 internal sealed class AlbumRepository(ILiteDatabase database)
-    : LiteDbRepository<AlbumEntity>(database, "albums"), IAlbumRepository
+    : LiteDbRepository<AlbumEntity>(database, CollectionName), IAlbumRepository
 {
-    protected override void EnsureIndexes(ILiteCollection<AlbumEntity> collection)
+    public const string CollectionName = "albums";
+
+
+    public static void EnsureIndexes(ILiteCollection<AlbumEntity> collection)
     {
         collection.EnsureIndex(x => x.Name, unique: false);
         collection.EnsureIndex(x => x.Artist, unique: false);
         collection.EnsureIndex(x => x.MusicBrainzArtistID, unique: false);
         collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
     }
+
 
     protected override AlbumEntity? FindExisting(AlbumEntity incoming) =>
         !string.IsNullOrWhiteSpace(incoming.MusicBrainzID)

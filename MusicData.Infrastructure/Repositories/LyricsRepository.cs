@@ -5,16 +5,20 @@ using MusicData.Domain.Entities;
 namespace MusicData.Infrastructure.Repositories;
 
 internal sealed class LyricsRepository(ILiteDatabase database)
-    : LiteDbRepository<LyricsEntity>(database, "lyrics"), ILyricsRepository
+    : LiteDbRepository<LyricsEntity>(database, CollectionName), ILyricsRepository
 {
+    public const string CollectionName = "lyrics";
+
     // Bumped to 2 when P2-2 added AlbumName / Duration to LyricsEntity.
     protected override int SchemaVersion => 2;
 
-    protected override void EnsureIndexes(ILiteCollection<LyricsEntity> collection)
+
+    public static void EnsureIndexes(ILiteCollection<LyricsEntity> collection)
     {
         collection.EnsureIndex(x => x.Title, unique: false);
         collection.EnsureIndex(x => x.ArtistName, unique: false);
     }
+
 
     protected override LyricsEntity? FindExisting(LyricsEntity incoming) =>
         FindByTitleAndArtist(incoming.Title, incoming.ArtistName);

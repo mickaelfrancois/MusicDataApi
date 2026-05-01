@@ -12,6 +12,7 @@ public class ArtistRepositoryTests : IDisposable
     public ArtistRepositoryTests()
     {
         _sut = new ArtistRepository(_db);
+        ArtistRepository.EnsureIndexes(_db.GetCollection<ArtistEntity>(ArtistRepository.CollectionName));
     }
 
     public void Dispose() => _db.Dispose();

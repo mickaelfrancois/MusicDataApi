@@ -40,6 +40,8 @@ public static class ConfigureServices
         services.AddScoped<IAlbumRepository, AlbumRepository>();
         services.AddScoped<ILyricsRepository, LyricsRepository>();
 
+        services.AddHostedService<LiteDbInitializer>();
+
         services.AddSingleton<IKeyedLocker, KeyedLocker>();
 
         services.AddHealthChecks()

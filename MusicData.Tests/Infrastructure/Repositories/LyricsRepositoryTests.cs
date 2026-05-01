@@ -12,6 +12,7 @@ public class LyricsRepositoryTests : IDisposable
     public LyricsRepositoryTests()
     {
         _sut = new LyricsRepository(_db);
+        LyricsRepository.EnsureIndexes(_db.GetCollection<LyricsEntity>(LyricsRepository.CollectionName));
     }
 
     public void Dispose() => _db.Dispose();

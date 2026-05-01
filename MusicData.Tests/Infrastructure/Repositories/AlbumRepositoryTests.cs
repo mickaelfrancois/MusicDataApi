@@ -12,6 +12,7 @@ public class AlbumRepositoryTests : IDisposable
     public AlbumRepositoryTests()
     {
         _sut = new AlbumRepository(_db);
+        AlbumRepository.EnsureIndexes(_db.GetCollection<AlbumEntity>(AlbumRepository.CollectionName));
     }
 
     public void Dispose() => _db.Dispose();

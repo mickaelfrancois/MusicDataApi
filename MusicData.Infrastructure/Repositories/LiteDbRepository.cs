@@ -11,7 +11,6 @@ internal abstract class LiteDbRepository<TEntity>
     protected LiteDbRepository(ILiteDatabase database, string collectionName)
     {
         Collection = database.GetCollection<TEntity>(collectionName);
-        EnsureIndexes(Collection);
     }
 
     /// <summary>
@@ -20,11 +19,6 @@ internal abstract class LiteDbRepository<TEntity>
     /// so the handler refetches and rewrites them with the current schema.
     /// </summary>
     protected virtual int SchemaVersion => 1;
-
-    /// <summary>
-    /// Subclasses register their indexes once per collection here.
-    /// </summary>
-    protected abstract void EnsureIndexes(ILiteCollection<TEntity> collection);
 
     /// <summary>
     /// Returns the row that <paramref name="incoming"/> should overwrite, or
