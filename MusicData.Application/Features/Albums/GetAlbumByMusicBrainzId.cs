@@ -1,10 +1,9 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MusicData.Application.DTOs;
+using MusicData.Application.Features.Common;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
-using MusicData.Shared.Telemetry;
 
 namespace MusicData.Application.Features.Albums;
 
@@ -13,53 +12,32 @@ public interface IGetAlbumByMusicBrainzId
     Task<AlbumDto?> HandleAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken = default);
 }
 
-public sealed class GetAlbumByMusicBrainzId(IAlbumRepository albumRepository,
-    IMusicAggregator musicAggregator,
-    IKeyedLocker keyedLocker,
-    ILogger<GetAlbumByName> logger) : IGetAlbumByMusicBrainzId
+public sealed record AlbumByMbidKey(string AlbumMusicBrainzId, string ArtistMusicBrainzId);
+
+public sealed class GetAlbumByMusicBrainzId(
+    IAlbumRepository repository,
+    IMusicAggregator aggregator,
+    IKeyedLocker locker,
+    ILogger<GetAlbumByMusicBrainzId> logger)
+    : CachedReadHandler<AlbumByMbidKey, AlbumDto, AlbumEntity>(locker, logger), IGetAlbumByMusicBrainzId
 {
-    public async Task<AlbumDto?> HandleAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
-            return null;
+    public Task<AlbumDto?> HandleAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken = default)
+        => HandleAsync(new AlbumByMbidKey(albumMusicBrainzId, artistMusicBrainzId), cancellationToken);
 
-        if (TryGetCached(albumMusicBrainzId, out AlbumDto? cached))
-            return cached;
+    protected override string EntityKind => "album";
 
-        using IDisposable _ = await keyedLocker.LockAsync($"album:bymbid:{albumMusicBrainzId.ToLowerInvariant()}", cancellationToken);
+    protected override bool IsValid(AlbumByMbidKey key)
+        => !string.IsNullOrWhiteSpace(key.AlbumMusicBrainzId) && !string.IsNullOrWhiteSpace(key.ArtistMusicBrainzId);
 
-        if (TryGetCached(albumMusicBrainzId, out cached))
-            return cached;
+    protected override AlbumEntity? GetCachedEntity(AlbumByMbidKey key)
+        => repository.GetByMusicBrainzID(key.AlbumMusicBrainzId);
 
-        AlbumDto? album = await musicAggregator.GetAlbumByMusicBrainzIdsync(albumMusicBrainzId, artistMusicBrainzId, cancellationToken);
-        if (album is null)
-        {
-            logger.LogInformation("Album '{Name}' not found in any music service.", albumMusicBrainzId);
-            Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "not_found" } });
-            return null;
-        }
+    protected override Task<AlbumDto?> FetchAsync(AlbumByMbidKey key, CancellationToken cancellationToken)
+        => aggregator.GetAlbumByMusicBrainzIdsync(key.AlbumMusicBrainzId, key.ArtistMusicBrainzId, cancellationToken);
 
-        albumRepository.Add(album!.ToEntity());
-        logger.LogInformation("Album '{AlbumName}' of '{ArtistName}' cached", albumMusicBrainzId, album.Artist);
-        Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "external" } });
+    protected override AlbumDto MapToDto(AlbumEntity entity) => entity.ToDto();
 
-        return album;
-    }
+    protected override void Persist(AlbumDto dto) => repository.Add(dto.ToEntity());
 
-
-    private bool TryGetCached(string albumMusicBrainzId, out AlbumDto? dto)
-    {
-        AlbumEntity? albumEntity = albumRepository.GetByMusicBrainzID(albumMusicBrainzId);
-        if (albumEntity is null)
-        {
-            dto = null;
-            return false;
-        }
-
-        logger.LogInformation("Album '{AlbumName}' of '{ArtistName}' was found in cache", albumEntity.Name, albumEntity.Artist);
-        Telemetry.Requests.Add(1, new TagList { { "entity", "album" }, { "result", "cache" } });
-        dto = albumEntity.ToDto();
-        dto.Origin = "Cache";
-        return true;
-    }
+    protected override string MakeLockKey(AlbumByMbidKey key) => $"album:bymbid:{key.AlbumMusicBrainzId.ToLowerInvariant()}";
 }

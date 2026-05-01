@@ -1,6 +1,6 @@
 ﻿namespace MusicData.Application.DTOs;
 
-public class AlbumDto
+public class AlbumDto : IOriginAware
 {
     public string Origin { get; set; } = string.Empty;
 
