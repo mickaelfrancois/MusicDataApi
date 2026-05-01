@@ -4,11 +4,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
 using MusicData.Application.Interfaces;
-using MusicData.Infrastructure.Services.LyricsOvh;
 
 namespace MusicData.Infrastructure.Services.LrcLib;
 
-public class LrcLibService([FromKeyedServices("lrclib")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LyricsOvhSettings> settings, ILogger<LyricsOvhService> logger)
+public class LrcLibService([FromKeyedServices("lrclib")] HttpClient httpClient, JsonSerializerOptions jsonOptions, IOptions<LrcLibSettings> settings, ILogger<LrcLibService> logger)
     : ILyricsService
 {
     public bool Enabled { get; set; } = settings.Value.Enabled;
