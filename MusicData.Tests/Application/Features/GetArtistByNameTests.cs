@@ -85,6 +85,33 @@ public class GetArtistByNameTests
         _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
     }
 
+    [Theory]
+    [InlineData("  The   BEATLES ")]
+    [InlineData("the\tbeatles")]
+    public async Task CacheMiss_TrivialVariantOfTheCanonicalName_PersistsNoAlias(string queried)
+    {
+        _aggregator.GetArtistByNameAsync(queried, Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync(queried);
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
+    [Fact]
+    public async Task CacheMiss_Alias_IsNormalized_AndNeverLongerThanTheNameCap()
+    {
+        string tooLong = new('b', 256);
+        _aggregator.GetArtistByNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                   .Returns(_ => new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("  Fab \t FOUR ");
+        await _sut.HandleAsync(tooLong);
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.SequenceEqual(new[] { "fab four" })));
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
     [Fact]
     public async Task CacheMiss_PartialResult_IsPersistedFlaggedPartial()
     {

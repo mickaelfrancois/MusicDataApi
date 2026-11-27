@@ -4,6 +4,7 @@ using MusicData.Application.Features.Common;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
+using MusicData.Shared;
 
 namespace MusicData.Application.Features.Albums;
 
@@ -43,8 +44,8 @@ public sealed class GetAlbumByName(
 
         // Stored under the canonical (MusicBrainz) title; remember the queried
         // name too so the next by-name lookup hits the cache.
-        if (!string.Equals(entity.Name, key.AlbumName, StringComparison.OrdinalIgnoreCase))
-            entity.Aliases.Add(key.AlbumName.ToLowerInvariant());
+        if (NameAliases.ForQuery(key.AlbumName, entity.Name) is { } alias)
+            entity.Aliases.Add(alias);
 
         repository.Add(entity);
     }

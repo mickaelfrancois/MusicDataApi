@@ -102,6 +102,17 @@ public class AlbumRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Add_ManyDistinctAliases_KeepsOnlyTheMostRecentTwenty()
+    {
+        for (int i = 0; i < 100; i++)
+            _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1", Aliases = [$"variant {i}"] });
+
+        Assert.Equal(20, _sut.GetByMusicBrainzID("mbid-1")!.Aliases.Count);
+        Assert.NotNull(_sut.GetByName("variant 99", "art-1"));
+        Assert.Null(_sut.GetByName("variant 0", "art-1"));
+    }
+
+    [Fact]
     public void GetByMusicBrainzID_DifferentCase_MatchesCachedRow()
     {
         _sut.Add(new AlbumEntity

@@ -4,6 +4,7 @@ using MusicData.Application.Features.Common;
 using MusicData.Application.Interfaces;
 using MusicData.Application.Mappers;
 using MusicData.Domain.Entities;
+using MusicData.Shared;
 
 namespace MusicData.Application.Features.Artists;
 
@@ -36,8 +37,8 @@ public sealed class GetArtistByName(
 
         // The artist is stored under its canonical (MusicBrainz) name; remember
         // the queried name too, or "Beatles" would never hit "The Beatles".
-        if (!string.Equals(entity.Name, artistName, StringComparison.OrdinalIgnoreCase))
-            entity.Aliases.Add(artistName.ToLowerInvariant());
+        if (NameAliases.ForQuery(artistName, entity.Name) is { } alias)
+            entity.Aliases.Add(alias);
 
         repository.Add(entity);
     }

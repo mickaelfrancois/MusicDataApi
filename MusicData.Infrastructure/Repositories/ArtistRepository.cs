@@ -1,6 +1,7 @@
 using LiteDB;
 using MusicData.Application.Interfaces;
 using MusicData.Domain.Entities;
+using MusicData.Shared;
 
 namespace MusicData.Infrastructure.Repositories;
 
@@ -27,7 +28,7 @@ internal sealed class ArtistRepository(ILiteDatabase database)
 
 
     protected override void MergeExisting(ArtistEntity incoming, ArtistEntity existing) =>
-        incoming.Aliases = incoming.Aliases.Union(existing.Aliases).ToList();
+        incoming.Aliases = NameAliases.Merge(existing.Aliases, incoming.Aliases);
 
 
     protected override ArtistEntity? FindExisting(ArtistEntity incoming) =>
@@ -44,6 +45,6 @@ internal sealed class ArtistRepository(ILiteDatabase database)
         string lowered = (name ?? string.Empty).ToLowerInvariant();
 
         return FirstFreshOrNull(ByNameQuery, lowered)
-            ?? FirstFreshOrNull(ByAliasQuery, lowered);
+            ?? FirstFreshOrNull(ByAliasQuery, NameAliases.Normalize(name));
     }
 }

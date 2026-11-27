@@ -97,6 +97,29 @@ public class ArtistRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Add_ManyDistinctAliases_KeepsOnlyTheMostRecentTwenty()
+    {
+        for (int i = 0; i < 200; i++)
+            _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = [$"variant {i}"] });
+
+        ArtistEntity stored = _db.GetCollection<ArtistEntity>("artists").FindAll().Single();
+        Assert.Equal(20, stored.Aliases.Count);
+        Assert.Equal(Enumerable.Range(180, 20).Select(i => $"variant {i}"), stored.Aliases);
+        Assert.NotNull(_sut.GetByName("Variant 199"));
+        Assert.Null(_sut.GetByName("variant 0"));
+    }
+
+    [Fact]
+    public void Add_TrivialAliasVariants_CollapseIntoOne_AndStillMatch()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["fab four"] });
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["  Fab   FOUR "] });
+
+        Assert.Equal(["fab four"], _db.GetCollection<ArtistEntity>("artists").FindAll().Single().Aliases);
+        Assert.NotNull(_sut.GetByName(" FAB  four"));
+    }
+
+    [Fact]
     public void GetByName_StaleHomonym_DoesNotHideAFreshRow()
     {
         ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
