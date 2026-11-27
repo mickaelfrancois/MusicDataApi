@@ -47,11 +47,11 @@ internal static class LastFmMapper
         return image;
     }
 
-    private static List<TrackDto> GetTracks(LastFmTracks tracks)
+    private static List<TrackDto> GetTracks(LastFmTracks? tracks)
     {
         List<TrackDto> trackDtos = [];
 
-        if (tracks.Track is not null)
+        if (tracks?.Track is not null)
         {
             foreach (LastFmTrack track in tracks.Track)
             {
@@ -59,7 +59,8 @@ internal static class LastFmMapper
                 {
                     Name = track.Name,
                     Duration = track.Duration,
-                    Position = track.Attr.Rank,
+                    // No "@attr" rank: fall back to the position in the list.
+                    Position = track.Attr?.Rank ?? trackDtos.Count + 1,
                 });
             }
         }

@@ -74,7 +74,7 @@ internal static class MusicBrainzMapper
             return new List<MemberDto>();
 
         return artist.Relations
-            .Where(r => r.TargetType == "artist" && r.Type.Contains("member") && !r.Ended.GetValueOrDefault())
+            .Where(r => r.TargetType == "artist" && r.Type?.Contains("member") == true && !r.Ended.GetValueOrDefault())
             .Select(relation => new MemberDto
             {
                 Name = relation.Artist?.Name ?? string.Empty,

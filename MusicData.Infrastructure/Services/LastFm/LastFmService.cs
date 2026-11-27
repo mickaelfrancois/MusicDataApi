@@ -98,12 +98,49 @@ internal sealed class LastFmAlbum
 
     public string PlayCount { get; set; } = string.Empty;
 
-    public LastFmTracks Tracks { get; set; } = default!;
+    // Absent for albums Last.fm knows without a track list.
+    public LastFmTracks? Tracks { get; set; }
 }
 
 internal sealed class LastFmTracks
 {
-    public List<LastFmTrack> Track { get; set; } = [];
+    [JsonConverter(typeof(LastFmTrackListConverter))]
+    public List<LastFmTrack>? Track { get; set; } = [];
+}
+
+/// <summary>
+/// Last.fm serializes a one-track album as a single object instead of a
+/// one-element array; accept both shapes.
+/// </summary>
+internal sealed class LastFmTrackListConverter : JsonConverter<List<LastFmTrack>>
+{
+    public override List<LastFmTrack> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            LastFmTrack? single = JsonSerializer.Deserialize<LastFmTrack>(ref reader, options);
+            return single is null ? [] : [single];
+        }
+
+        if (reader.TokenType == JsonTokenType.StartArray)
+        {
+            List<LastFmTrack> tracks = [];
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                LastFmTrack? track = JsonSerializer.Deserialize<LastFmTrack>(ref reader, options);
+                if (track is not null)
+                    tracks.Add(track);
+            }
+
+            return tracks;
+        }
+
+        reader.Skip();
+        return [];
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<LastFmTrack> value, JsonSerializerOptions options) =>
+        throw new NotSupportedException();
 }
 
 internal sealed class LastFmTrack
@@ -112,16 +149,18 @@ internal sealed class LastFmTrack
 
     public string Url { get; set; } = string.Empty;
 
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public int? Duration { get; set; }
 
     public LastFmArtist? Artist { get; set; }
 
     [JsonPropertyName("@attr")]
-    public LastFmAttr Attr { get; set; } = default!;
+    public LastFmAttr? Attr { get; set; }
 }
 
 internal sealed class LastFmAttr
 {
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     public int Rank { get; set; }
 }
 
