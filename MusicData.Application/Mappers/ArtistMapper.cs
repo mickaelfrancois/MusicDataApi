@@ -92,6 +92,7 @@ public static class ArtistMapper
             Wikipedia = dto.Wikipedia,
             Youtube = dto.Youtube,
             LastFM = dto.LastFM,
+            IsPartial = dto.IsPartial,
         };
 
         entity.Members = dto.Members?.Select(MemberMapper.ToEntity).Where(m => m is not null)!.ToList()!;

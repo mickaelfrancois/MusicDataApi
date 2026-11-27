@@ -6,7 +6,7 @@ public interface IAlbumRepository
 {
     AlbumEntity? GetByMusicBrainzID(string musicBrainzID);
 
-    AlbumEntity? GetByName(string albumName, string artistName);
+    AlbumEntity? GetByName(string albumName, string artistMusicBrainzId);
 
     void Add(AlbumEntity album);
 }

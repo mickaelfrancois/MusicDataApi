@@ -8,9 +8,6 @@ namespace MusicData.Api.Endpoints;
 
 public static class ArtistEndpoints
 {
-    private const int MaxNameLength = 255;
-    private const int MaxMbidLength = 36;
-
     public static IEndpointRouteBuilder MapArtistsApiV1(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder api = app.MapGroup("v1/artists")
@@ -30,7 +27,7 @@ public static class ArtistEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(artistName, MaxNameLength, "Artist name") is { } error)
+        if (Validation.RequireMaxLength(artistName, Validation.MaxNameLength, "Artist name") is { } error)
             return error;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetArtistByName", ActivityKind.Server);
@@ -40,7 +37,7 @@ public static class ArtistEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 
@@ -51,7 +48,7 @@ public static class ArtistEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(musicBrainzId, MaxMbidLength, "Artist musicBrainzId") is { } error)
+        if (Validation.RequireMbid(musicBrainzId, "Artist musicBrainzId") is { } error)
             return error;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetArtistByMusicBrainzId", ActivityKind.Server);
@@ -61,7 +58,7 @@ public static class ArtistEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 }

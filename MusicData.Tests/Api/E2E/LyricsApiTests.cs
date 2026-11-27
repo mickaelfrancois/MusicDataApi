@@ -53,4 +53,42 @@ public class LyricsApiTests : IClassFixture<MusicDataApiFactory>
         Assert.Equal("Wasting Light", body.AlbumName);
         Assert.Equal(257, body.Duration);
     }
+
+    [Fact]
+    public async Task DifferentQueries_OnTheSamePath_GetTheirOwnLyrics()
+    {
+        // With "public" the response-caching middleware stored the first 200 under
+        // the path alone and replayed it for every other title for 30 seconds.
+        foreach (string title in new[] { "First", "Second" })
+        {
+            _factory.LyricsAggregator
+                .GetLyricsAsync(title, "Same Artist", "", 0, Arg.Any<CancellationToken>())
+                .Returns(new LyricsDto { Title = title, ArtistName = "Same Artist", PlainLyrics = "lyrics of " + title });
+        }
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        LyricsDto? first = await client.GetFromJsonAsync<LyricsDto>("/v1/lyrics?title=First&artistName=Same Artist");
+        LyricsDto? second = await client.GetFromJsonAsync<LyricsDto>("/v1/lyrics?title=Second&artistName=Same Artist");
+
+        Assert.Equal("lyrics of First", first!.PlainLyrics);
+        Assert.Equal("lyrics of Second", second!.PlainLyrics);
+    }
+
+    [Fact]
+    public async Task AlbumNameAndDuration_AreOptional()
+    {
+        // Own title + no-cache: this test used to pass only because the HTTP
+        // response cache replayed another test's 200 for the same path.
+        LyricsDto stub = new() { Title = "Optional", ArtistName = "Foo Fighters", PlainLyrics = "x", Origin = "LrcLib" };
+        _factory.LyricsAggregator
+            .GetLyricsAsync("Optional", "Foo Fighters", "", 0, Arg.Any<CancellationToken>())
+            .Returns(stub);
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        client.DefaultRequestHeaders.CacheControl = new() { NoCache = true };
+        HttpResponseMessage response = await client.GetAsync("/v1/lyrics?title=Optional&artistName=Foo Fighters");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Optional", (await response.Content.ReadFromJsonAsync<LyricsDto>())!.Title);
+    }
 }

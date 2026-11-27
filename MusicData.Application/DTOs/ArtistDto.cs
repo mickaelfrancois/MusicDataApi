@@ -4,6 +4,9 @@ public class ArtistDto : IOriginAware
 {
     public string Origin { get; set; } = string.Empty;
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPartial { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string MusicBrainzID { get; set; } = string.Empty;

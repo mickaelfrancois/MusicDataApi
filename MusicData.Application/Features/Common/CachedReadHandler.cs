@@ -28,13 +28,19 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
 
     protected abstract TDto MapToDto(TEntity entity);
 
-    protected abstract void Persist(TDto dto);
+    protected abstract void Persist(TKey key, TDto dto);
 
     protected abstract string MakeLockKey(TKey key);
 
     protected virtual bool IsValid(TKey key) => true;
 
     protected virtual void OnNotFound(TKey key) { }
+
+    /// <summary>
+    /// True when the cached row is a negative-cache marker ("known missing"):
+    /// the handler then answers null without calling any external service.
+    /// </summary>
+    protected virtual bool IsNegativeHit(TEntity entity) => false;
 
     public async Task<TDto?> HandleAsync(TKey key, CancellationToken cancellationToken = default)
     {
@@ -58,9 +64,17 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
             return null;
         }
 
-        Persist(fetched);
-        _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
-        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "external" } });
+        // A partial DTO (a secondary provider failed) is persisted too: the
+        // mappers carry IsPartial onto the entity and the repository gives such
+        // rows a short time-to-live, so one flaky provider doesn't disable caching.
+        Persist(key, fetched);
+
+        if (fetched.IsPartial)
+            _logger.LogWarning("{Entity} '{Key}' is incomplete (a provider failed); cached briefly.", EntityKind, key);
+        else
+            _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
+
+        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", fetched.IsPartial ? "partial" : "external" } });
         return fetched;
     }
 
@@ -76,6 +90,12 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
 
         _logger.LogInformation("{Entity} '{Key}' found in cache", EntityKind, key);
         Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "cache" } });
+        if (IsNegativeHit(entity))
+        {
+            dto = null;
+            return true;
+        }
+
         dto = MapToDto(entity);
         dto.Origin = "Cache";
         return true;

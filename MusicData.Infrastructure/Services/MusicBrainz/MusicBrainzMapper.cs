@@ -13,7 +13,7 @@ internal static class MusicBrainzMapper
         ArtistDto dto = new()
         {
             Name = artist.Name ?? string.Empty,
-            MusicBrainzID = artist.Id ?? null,
+            MusicBrainzID = artist.Id ?? string.Empty,
             CountryCode = artist.Country ?? null,
             Biography = null,
             PictureUrl = null
@@ -41,7 +41,8 @@ internal static class MusicBrainzMapper
         AlbumDto dto = new()
         {
             Name = release.Title ?? string.Empty,
-            MusicBrainzID = release.Id ?? null,
+            MusicBrainzID = release.Id ?? string.Empty,
+            MusicBrainzArtistID = release.Credits?.FirstOrDefault()?.Artist?.Id ?? string.Empty,
             ReleaseGroupMusicBrainzID = release.ReleaseGroup?.Id ?? null,
             ReleaseFormat = release.Media != null && release.Media.Count > 0 ? release.Media[0].Format : null,
             Label = release.Labels != null && release.Labels.Count > 0 ? release.Labels[0].Label?.Name : null,
@@ -74,7 +75,7 @@ internal static class MusicBrainzMapper
             return new List<MemberDto>();
 
         return artist.Relations
-            .Where(r => r.TargetType == "artist" && r.Type.Contains("member") && !r.Ended.GetValueOrDefault())
+            .Where(r => r.TargetType == "artist" && r.Type?.Contains("member") == true && !r.Ended.GetValueOrDefault())
             .Select(relation => new MemberDto
             {
                 Name = relation.Artist?.Name ?? string.Empty,

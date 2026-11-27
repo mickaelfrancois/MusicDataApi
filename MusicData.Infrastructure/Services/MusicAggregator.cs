@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
+using MusicData.Application.Exceptions;
 using MusicData.Application.Interfaces;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Services.MusicBrainz;
@@ -25,7 +26,11 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        string? musicBrainzId = await _musicBrainz.FindArtistAsync(name, cancellationToken);
+        string? musicBrainzId = await RunRequiredAsync(
+            _musicBrainz,
+            "artist",
+            ct => _musicBrainz.FindArtistAsync(name, ct),
+            cancellationToken);
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -38,12 +43,26 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        IReadOnlyList<ArtistDto> artists = await RunAllSafeAsync(
+        RunResult<ArtistDto> run = await RunAllSafeAsync(
             "artist",
             (s, ct) => s.GetArtistAsync(musicBrainzId, ct),
             cancellationToken);
 
-        return artists.Count == 0 ? null : BuildMergedArtist(artists);
+        ArtistDto? identity = RequireIdentity(run, "artist");
+        if (identity is null)
+            return null;
+
+        ArtistDto merged = BuildMergedArtist(run.Items);
+
+        // Identity comes from MusicBrainz, not from the first provider that has
+        // a name/MBID (LastFm may answer with another spelling or MBID): the
+        // cache is keyed on these two fields.
+        if (!string.IsNullOrWhiteSpace(identity.Name))
+            merged.Name = identity.Name;
+        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
+            merged.MusicBrainzID = identity.MusicBrainzID;
+        merged.IsPartial = run.HasFailures;
+        return merged;
     }
 
 
@@ -52,43 +71,88 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrEmpty(albumName))
             return null;
 
-        MusicBrainzReleaseInfo? releaseInfo = await _musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
+        MusicBrainzReleaseInfo? releaseInfo = await RunRequiredAsync(
+            _musicBrainz,
+            "album",
+            ct => _musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, ct),
+            cancellationToken);
         if (releaseInfo is null || string.IsNullOrEmpty(releaseInfo.ReleaseId))
             return null;
 
-        string releaseId = releaseInfo.ReleaseId;
-        string? releaseGroupId = releaseInfo.ReleaseGroupId;
+        AlbumDto? album = await GetAlbumByMusicBrainzIdAsync(releaseInfo.ReleaseId, cancellationToken);
 
-        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
-            "album",
-            (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
-            cancellationToken);
+        // The search was scoped to this artist (arid), so the release is credited
+        // to it even when it is not the first credit; by-name lookups key on it.
+        if (album is not null)
+            album.MusicBrainzArtistID = artistMusicBrainzId;
 
-        if (albums.Count == 0)
+        return album;
+    }
+
+
+    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(albumMusicBrainzId))
             return null;
 
+        // MusicBrainz first: it is the source of identity (failure = 503, unknown
+        // release = 404) and of the release-group id / artist MBID the other
+        // providers and the cache need. Neither is taken from the caller.
+        IMusicService? musicBrainz = Services.FirstOrDefault(s => s is IMusicBrainzLookup);
+        if (musicBrainz is null)
+            throw new ExternalServicesUnavailableException("album");
+
+        AlbumDto? identity = await RunRequiredAsync(
+            musicBrainz,
+            "album",
+            ct => musicBrainz.GetAlbumAsync(albumMusicBrainzId, null, ct),
+            cancellationToken);
+        if (identity is null)
+            return null;
+
+        string? releaseGroupId = identity.ReleaseGroupMusicBrainzID;
+
+        RunResult<AlbumDto> run = await RunAllSafeAsync(
+            "album",
+            (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, releaseGroupId, ct),
+            cancellationToken,
+            only: s => !ReferenceEquals(s, musicBrainz));
+
+        // Keep the registration order as the merge priority.
+        List<AlbumDto> albums = [];
+        foreach (IMusicService service in Services)
+        {
+            AlbumDto? album = ReferenceEquals(service, musicBrainz)
+                ? identity
+                : run.Outcomes.FirstOrDefault(o => ReferenceEquals(o.Service, service)).Result;
+            if (album is not null)
+                albums.Add(album);
+        }
+
         AlbumDto merged = BuildMergedAlbum(albums);
-        merged.MusicBrainzArtistID = artistMusicBrainzId;
+        merged.Name = FirstNonEmpty([identity, merged], a => a.Name);
+        merged.MusicBrainzID = FirstNonEmpty([identity, merged], a => a.MusicBrainzID);
+        merged.MusicBrainzArtistID = identity.MusicBrainzArtistID;
+        merged.ReleaseGroupMusicBrainzID = releaseGroupId;
+        merged.IsPartial = run.HasFailures;
         return merged;
     }
 
 
-    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken)
+    /// <summary>
+    /// MusicBrainz is the source of identity (name, MBID): without its answer
+    /// the other providers' data cannot be attributed to anything. Throws when
+    /// it failed (503, never cached) and returns null when it genuinely does
+    /// not know the entity (404), whatever the secondary providers said.
+    /// </summary>
+    private static TDto? RequireIdentity<TDto>(RunResult<TDto> run, string entityKind)
+        where TDto : class
     {
-        if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
-            return null;
+        ServiceOutcome<TDto> musicBrainz = run.Outcomes.FirstOrDefault(o => o.Service is IMusicBrainzLookup);
+        if (musicBrainz.Service is null || musicBrainz.Failed)
+            throw new ExternalServicesUnavailableException(entityKind);
 
-        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
-            "album",
-            (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
-            cancellationToken);
-
-        if (albums.Count == 0)
-            return null;
-
-        AlbumDto merged = BuildMergedAlbum(albums);
-        merged.MusicBrainzArtistID = artistMusicBrainzId;
-        return merged;
+        return musicBrainz.Result;
     }
 
 

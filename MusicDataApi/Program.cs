@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.HttpOverrides;
 using MusicData.Api.Endpoints;
 using MusicData.Application;
 using MusicData.Infrastructure;
@@ -19,6 +18,7 @@ builder.Services.AddIpRateLimiting(builder.Configuration);
 builder.Services.AddResponseCaching();
 builder.Services.AddApiAuthentication();
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<MusicData.Api.ExternalServicesExceptionHandler>();
 
 JsonSerializerOptions jsonOptions = new()
 {
@@ -45,20 +45,18 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-ForwardedHeadersOptions forwardOptions = new()
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-
-app.UseForwardedHeaders(forwardOptions);
+app.UseForwardedHeaders(MusicData.Api.ForwardedHeadersSetup.Create(app.Configuration));
 
 if (!app.Environment.IsEnvironment("Docker"))
     app.UseHttpsRedirection();
 
+// Rate limiting must run before authentication so failed API-key attempts
+// (401) are throttled too, otherwise the key could be brute-forced freely.
+app.UseIpRateLimiting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseResponseCaching();
-app.UseIpRateLimiting();
 
 app.MapArtistsApiV1();
 app.MapAlbumsApiV1();
@@ -79,9 +77,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
                 e => new
                 {
                     status = e.Value.Status.ToString(),
-                    description = e.Value.Description,
-                    duration = e.Value.Duration,
-                    exception = e.Value.Exception?.Message
+                    duration = e.Value.Duration
                 })
         });
         await context.Response.WriteAsync(result);

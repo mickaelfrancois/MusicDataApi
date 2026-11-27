@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
+using MusicData.Application.Exceptions;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Shared.Telemetry;
 
@@ -23,22 +24,102 @@ internal abstract class RateLimitedAggregator<TService>
             .ToDictionary(t => t, t => CreateLimiter(t, limits));
     }
 
-    protected async Task<IReadOnlyList<TResult>> RunAllSafeAsync<TResult>(
-        string entityKind,
-        Func<TService, CancellationToken, Task<TResult?>> call,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// What one provider answered: a result, a genuine "not found" (null
+    /// result, not failed) or a failure (exception or timeout).
+    /// </summary>
+    protected readonly record struct ServiceOutcome<TResult>(TService Service, TResult? Result, bool Failed)
+        where TResult : class;
+
+    /// <summary>
+    /// Outcome of a fan-out: one entry per provider, in registration order,
+    /// plus the non-null results and how many providers failed.
+    /// </summary>
+    protected readonly record struct RunResult<TResult>(IReadOnlyList<ServiceOutcome<TResult>> Outcomes)
         where TResult : class
     {
-        Task<TResult?>[] tasks = Services
+        public IReadOnlyList<TResult> Items { get; } = Outcomes.Where(o => o.Result is not null).Select(o => o.Result!).ToList();
+
+        public int Failures => Outcomes.Count(o => o.Failed);
+
+        public bool HasFailures => Failures > 0;
+
+        /// <summary>
+        /// Throws when providers failed and nothing came back: "not found"
+        /// cannot be concluded and must not be cached.
+        /// </summary>
+        public IReadOnlyList<TResult> RequireItemsOrNotFound(string entityKind)
+        {
+            if (Items.Count == 0 && HasFailures)
+                throw new ExternalServicesUnavailableException(entityKind);
+
+            return Items;
+        }
+    }
+
+    protected async Task<RunResult<TResult>> RunAllSafeAsync<TResult>(
+        string entityKind,
+        Func<TService, CancellationToken, Task<TResult?>> call,
+        CancellationToken cancellationToken,
+        Func<TService, bool>? only = null)
+        where TResult : class
+    {
+        Task<ServiceOutcome<TResult>>[] tasks = Services
+            .Where(s => only is null || only(s))
             .Select(s => SafeRunAsync(s, entityKind, call, cancellationToken))
             .ToArray();
 
-        TResult?[] results = await Task.WhenAll(tasks);
-        return results.Where(r => r is not null).Cast<TResult>().ToList();
+        return new RunResult<TResult>(await Task.WhenAll(tasks));
     }
 
 
-    private async Task<TResult?> SafeRunAsync<TResult>(
+    /// <summary>
+    /// Runs one call the request cannot do without (e.g. the MusicBrainz
+    /// name → MBID lookup) outside a fan-out: it waits on the provider's token
+    /// bucket like any other call, returns null for a genuine "not found" and
+    /// turns a failure into <see cref="ExternalServicesUnavailableException"/>.
+    /// </summary>
+    protected async Task<TResult?> RunRequiredAsync<TResult>(
+        object service,
+        string entityKind,
+        Func<CancellationToken, Task<TResult?>> call,
+        CancellationToken cancellationToken)
+        where TResult : class
+    {
+        string serviceName = service.GetType().Name;
+
+        try
+        {
+            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
+                await limiter.WaitForAvailabilityAsync(cancellationToken);
+
+            TResult? result = await call(cancellationToken);
+            Telemetry.ExternalCalls.Add(1, new TagList
+            {
+                { "service", serviceName },
+                { "entity", entityKind },
+                { "result", result is null ? "not_found" : "ok" }
+            });
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Telemetry.ExternalCalls.Add(1, new TagList
+            {
+                { "service", serviceName },
+                { "entity", entityKind },
+                { "result", "error" }
+            });
+            throw new ExternalServicesUnavailableException(entityKind, ex);
+        }
+    }
+
+
+    private async Task<ServiceOutcome<TResult>> SafeRunAsync<TResult>(
         TService service,
         string entityKind,
         Func<TService, CancellationToken, Task<TResult?>> call,
@@ -59,7 +140,11 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", result is null ? "not_found" : "ok" }
             });
-            return result;
+            return new ServiceOutcome<TResult>(service, result, false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -69,7 +154,7 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", "error" }
             });
-            return null;
+            return new ServiceOutcome<TResult>(service, null, true);
         }
     }
 

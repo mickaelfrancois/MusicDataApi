@@ -8,6 +8,8 @@ public class LyricsEntity : IVersionedEntity
 
     public int Version { get; set; }
 
+    public bool IsPartial { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string ArtistName { get; set; } = string.Empty;
@@ -19,4 +21,10 @@ public class LyricsEntity : IVersionedEntity
     public string? PlainLyrics { get; set; }
 
     public string? SyncLyrics { get; set; }
+
+    /// <summary>
+    /// True for a negative-cache marker: no provider had lyrics for this key.
+    /// Such a row must be treated as "known missing", never returned as lyrics.
+    /// </summary>
+    public bool NotFound { get; set; }
 }

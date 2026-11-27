@@ -8,6 +8,8 @@ public class ArtistEntity : IVersionedEntity
 
     public int Version { get; set; }
 
+    public bool IsPartial { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string MusicBrainzID { get; set; } = string.Empty;
@@ -73,6 +75,13 @@ public class ArtistEntity : IVersionedEntity
     public bool Disbanded { get; set; }
 
     public List<MemberEntity> Members { get; set; } = [];
+
+    /// <summary>
+    /// Normalized (see <c>NameAliases</c>, at most 20) names that were queried and resolved to this row although
+    /// they differ from <see cref="Name"/> (e.g. "beatles" for "The Beatles"),
+    /// so the by-name lookup hits the cache for them too.
+    /// </summary>
+    public List<string> Aliases { get; set; } = [];
 }
 
 

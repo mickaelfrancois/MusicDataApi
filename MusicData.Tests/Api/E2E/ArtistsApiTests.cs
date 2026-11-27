@@ -28,6 +28,20 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
+    public async Task ByMbid_AllProvidersFailed_Returns503WithRetryAfter_NotNotFound()
+    {
+        _factory.MusicAggregator
+            .GetArtistByMusicBrainzIdAsync("11111111-1111-4111-8111-111111111111", Arg.Any<CancellationToken>())
+            .Returns<ArtistDto?>(_ => throw new MusicData.Application.Exceptions.ExternalServicesUnavailableException("artist"));
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/11111111-1111-4111-8111-111111111111");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.True(response.Headers.Contains("Retry-After"));
+    }
+
+    [Fact]
     public async Task ByName_AggregatorReturnsArtist_Returns200WithDto()
     {
         ArtistDto stub = new() { Name = "Foo Fighters", MusicBrainzID = "mbid-foo", Origin = "Aggregated" };
@@ -46,7 +60,26 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
-    public async Task ByName_HappyPath_SetsPublicCacheHeaders()
+    public async Task ByName_ResolvedUnderCanonicalName_SecondRequestIsServedFromCache()
+    {
+        _factory.MusicAggregator
+            .GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>())
+            .Returns(_ => new ArtistDto { Name = "The Beatles", MusicBrainzID = "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", Origin = "Aggregated" });
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        // no-cache only bypasses the 30 s HTTP response cache, not the LiteDB one.
+        client.DefaultRequestHeaders.CacheControl = new() { NoCache = true };
+        ArtistDto? first = await client.GetFromJsonAsync<ArtistDto>("/v1/artists/byName/Beatles");
+        ArtistDto? second = await client.GetFromJsonAsync<ArtistDto>("/v1/artists/byName/Beatles");
+
+        Assert.Equal("The Beatles", first!.Name);
+        Assert.Equal("The Beatles", second!.Name);
+        Assert.Equal("Cache", second.Origin);
+        await _factory.MusicAggregator.Received(1).GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ByName_HappyPath_SetsPrivateCacheHeaders()
     {
         _factory.MusicAggregator
             .GetArtistByNameAsync("Cached Headers Test", Arg.Any<CancellationToken>())
@@ -55,7 +88,10 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
         using HttpClient client = _factory.CreateAuthenticatedClient();
         HttpResponseMessage response = await client.GetAsync("/v1/artists/byName/Cached Headers Test");
 
-        Assert.Equal("public, max-age=30", response.Headers.CacheControl?.ToString());
+        // API-key authenticated: cacheable by the client only, never by a shared cache.
+        Assert.True(response.Headers.CacheControl?.Private);
+        Assert.False(response.Headers.CacheControl?.Public);
+        Assert.Equal(TimeSpan.FromSeconds(30), response.Headers.CacheControl?.MaxAge);
         Assert.Contains("Accept-Encoding", response.Headers.Vary);
     }
 
@@ -69,15 +105,29 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("not-a-guid")]
+    [InlineData("ghost-mbid-0000000000000000000000000")]
+    [InlineData("a8d77515f7b74d7196468446a3b2a341")]
+    public async Task ByMbid_NotAGuid_ReturnsBadRequest_WithoutCallingAggregator(string mbid)
+    {
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/" + mbid);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await _factory.MusicAggregator.DidNotReceive().GetArtistByMusicBrainzIdAsync(mbid, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ByMbid_AggregatorReturnsNull_Returns404()
     {
         _factory.MusicAggregator
-            .GetArtistByMusicBrainzIdAsync("ghost-mbid-0000000000000000000000000", Arg.Any<CancellationToken>())
+            .GetArtistByMusicBrainzIdAsync("22222222-2222-4222-8222-222222222222", Arg.Any<CancellationToken>())
             .Returns((ArtistDto?)null);
 
         using HttpClient client = _factory.CreateAuthenticatedClient();
-        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/ghost-mbid-0000000000000000000000000");
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/22222222-2222-4222-8222-222222222222");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

@@ -5,7 +5,7 @@ namespace MusicData.Infrastructure.Services.Fanart;
 
 internal static class FanartMapper
 {
-    public static ArtistDto MapArtist(FanartRoot root)
+    public static ArtistDto? MapArtist(FanartRoot root)
     {
         List<FanartImage> backgrounds = root.ArtistBackground?
             .OrderByDescending(c => c.Score)
@@ -29,6 +29,10 @@ internal static class FanartMapper
         string fanart4 = backgrounds.ElementAtOrDefault(3)?.Url ?? string.Empty;
         string fanart5 = backgrounds.ElementAtOrDefault(4)?.Url ?? string.Empty;
 
+        // No image at all: nothing to contribute, same as "not found".
+        if (string.IsNullOrEmpty(pictureUrl) && string.IsNullOrEmpty(bannerUrl) && string.IsNullOrEmpty(logoUrl) && backgrounds.Count == 0)
+            return null;
+
         return new ArtistDto()
         {
             PictureUrl = pictureUrl,
@@ -42,11 +46,14 @@ internal static class FanartMapper
         };
     }
 
-    public static AlbumDto MapAlbum(FanartRoot root)
+    public static AlbumDto? MapAlbum(FanartRoot root)
     {
         string coverUrl = root.ArtistThumb?
             .OrderByDescending(c => c.Score)
             .FirstOrDefault()?.Url ?? string.Empty;
+
+        if (string.IsNullOrEmpty(coverUrl))
+            return null;
 
         return new AlbumDto()
         {

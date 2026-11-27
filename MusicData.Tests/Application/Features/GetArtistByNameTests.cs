@@ -62,6 +62,70 @@ public class GetArtistByNameTests
     }
 
     [Fact]
+    public async Task CacheMiss_ResolvedUnderAnotherName_PersistsTheQueriedNameAsAlias()
+    {
+        _repo.GetByName("Beatles").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("Beatles");
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Name == "The Beatles" && e.Aliases.SequenceEqual(new[] { "beatles" })));
+    }
+
+    [Fact]
+    public async Task CacheMiss_ResolvedUnderTheSameName_PersistsNoAlias()
+    {
+        _repo.GetByName("the beatles").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("the beatles", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("the beatles");
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
+    [Theory]
+    [InlineData("  The   BEATLES ")]
+    [InlineData("the\tbeatles")]
+    public async Task CacheMiss_TrivialVariantOfTheCanonicalName_PersistsNoAlias(string queried)
+    {
+        _aggregator.GetArtistByNameAsync(queried, Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync(queried);
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
+    [Fact]
+    public async Task CacheMiss_Alias_IsNormalized_AndNeverLongerThanTheNameCap()
+    {
+        string tooLong = new('b', 256);
+        _aggregator.GetArtistByNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                   .Returns(_ => new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("  Fab \t FOUR ");
+        await _sut.HandleAsync(tooLong);
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.SequenceEqual(new[] { "fab four" })));
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
+    [Fact]
+    public async Task CacheMiss_PartialResult_IsPersistedFlaggedPartial()
+    {
+        _repo.GetByName("Foo Fighters").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("Foo Fighters", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "Foo Fighters", MusicBrainzID = "id", IsPartial = true });
+
+        ArtistDto? result = await _sut.HandleAsync("Foo Fighters");
+
+        Assert.NotNull(result);
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Name == "Foo Fighters" && e.IsPartial));
+    }
+
+    [Fact]
     public async Task CacheMiss_AggregatorReturnsNull_DoesNotPersist_ReturnsNull()
     {
         _repo.GetByName("ghost").Returns((ArtistEntity?)null);

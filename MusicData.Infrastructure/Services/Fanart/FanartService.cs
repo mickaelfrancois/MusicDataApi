@@ -17,14 +17,11 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
         try
         {
-            string requestUrl = $"{musicBrainzId}?api_key={settings.Value.ApiKey}";
+            string requestUrl = $"{Uri.EscapeDataString(musicBrainzId)}?api_key={Uri.EscapeDataString(settings.Value.ApiKey)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -38,15 +35,10 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Found Artist '{MusicBrainzId}'", musicBrainzId);
             return FanartMapper.MapArtist(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 
@@ -58,14 +50,11 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
         try
         {
-            string requestUrl = $"{releaseGroupMusicBrainzId}?api_key={settings.Value.ApiKey}";
+            string requestUrl = $"{Uri.EscapeDataString(releaseGroupMusicBrainzId)}?api_key={Uri.EscapeDataString(settings.Value.ApiKey)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -79,15 +68,10 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Found Album '{ReleaseGroupMusicBrainzId}'", releaseGroupMusicBrainzId);
             return FanartMapper.MapAlbum(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "FanartService.GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 }

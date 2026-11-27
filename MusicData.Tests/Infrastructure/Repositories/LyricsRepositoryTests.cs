@@ -77,4 +77,54 @@ public class LyricsRepositoryTests : IDisposable
         Assert.Equal("Wasting Light", loaded!.AlbumName);
         Assert.Equal(257, loaded.Duration);
     }
+
+    [Fact]
+    public void Get_PositiveRow_ExpiresAfter30Days_NegativeMarkerAfter1Day()
+    {
+        _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "lyrics" });
+        _sut.Add(new LyricsEntity { Title = "Nope", ArtistName = "Nobody", NotFound = true });
+
+        Age("Walk", TimeSpan.FromDays(2));
+        Age("Nope", TimeSpan.FromDays(2));
+
+        Assert.NotNull(_sut.Get("Walk", "Foo Fighters"));
+        Assert.Null(_sut.Get("Nope", "Nobody"));
+
+        Age("Walk", TimeSpan.FromDays(31));
+
+        Assert.Null(_sut.Get("Walk", "Foo Fighters"));
+    }
+
+    [Fact]
+    public void Get_PartialLyrics_ExpireAfterOneHour()
+    {
+        _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "lyrics", IsPartial = true });
+
+        Assert.NotNull(_sut.Get("Walk", "Foo Fighters"));
+
+        Age("Walk", TimeSpan.FromHours(2));
+
+        Assert.Null(_sut.Get("Walk", "Foo Fighters"));
+    }
+
+    [Fact]
+    public void Add_OverExpiredRow_RefreshesItInPlace()
+    {
+        _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", NotFound = true });
+        Age("Walk", TimeSpan.FromDays(2));
+
+        _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "found" });
+
+        Assert.Equal("found", _sut.Get("Walk", "Foo Fighters")!.PlainLyrics);
+        Assert.Equal(1, _db.GetCollection<LyricsEntity>(LyricsRepository.CollectionName).Count());
+    }
+
+
+    private void Age(string title, TimeSpan by)
+    {
+        ILiteCollection<LyricsEntity> col = _db.GetCollection<LyricsEntity>(LyricsRepository.CollectionName);
+        LyricsEntity row = col.FindOne(x => x.Title == title);
+        row.UpdateDateTime = DateTime.UtcNow - by;
+        col.Update(row);
+    }
 }

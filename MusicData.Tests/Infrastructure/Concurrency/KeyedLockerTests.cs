@@ -72,4 +72,35 @@ public class KeyedLockerTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiter);
     }
+
+    [Fact]
+    public async Task ReleasedKeys_AreRemoved_SoTheDictionaryDoesNotGrow()
+    {
+        KeyedLocker locker = new();
+
+        for (int i = 0; i < 100; i++)
+        {
+            using IDisposable _ = await locker.LockAsync($"key-{i}");
+        }
+
+        Assert.Equal(0, locker.ActiveKeyCount);
+    }
+
+    [Fact]
+    public async Task CancelledWaiter_DoesNotLeakItsEntry_NorBreakTheHolder()
+    {
+        KeyedLocker locker = new();
+        IDisposable holder = await locker.LockAsync("k");
+
+        using CancellationTokenSource cts = new();
+        Task<IDisposable> waiter = locker.LockAsync("k", cts.Token);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiter);
+
+        Assert.Equal(1, locker.ActiveKeyCount);
+        holder.Dispose();
+        Assert.Equal(0, locker.ActiveKeyCount);
+
+        using IDisposable again = await locker.LockAsync("k").WaitAsync(TimeSpan.FromSeconds(1));
+    }
 }

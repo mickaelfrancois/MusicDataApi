@@ -8,13 +8,15 @@ namespace MusicData.Infrastructure.Services;
 internal static class HttpClientRegistration
 {
     private const string UserAgent = "RoK/1.0 (rok@francois.ovh)";
+    private static readonly TimeSpan PooledConnectionLifetime = TimeSpan.FromMinutes(5);
 
     public static IServiceCollection AddExternalHttpClient<TInterface, TImpl, TSettings>(
         this IServiceCollection services,
         IConfiguration configuration,
         string name,
         string configSection,
-        Action<HttpClient>? configureClient = null)
+        Action<HttpClient>? configureClient = null,
+        int retriesOnBusy = 0)
         where TInterface : class
         where TImpl : class, TInterface
         where TSettings : class, IHttpServiceSettings, new()
@@ -28,7 +30,7 @@ internal static class HttpClientRegistration
         if (!section.GetValue<bool>("Enabled"))
             return services;
 
-        services.AddHttpClient<TInterface, TImpl>(name, (sp, client) =>
+        IHttpClientBuilder builder = services.AddHttpClient<TInterface, TImpl>(name, (sp, client) =>
         {
             TSettings settings = sp.GetRequiredService<IOptions<TSettings>>().Value;
             client.BaseAddress = new Uri(settings.BaseUrl);
@@ -39,8 +41,16 @@ internal static class HttpClientRegistration
         })
         .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+
+            // The typed clients are captured for the process lifetime by the
+            // singleton aggregators, so IHttpClientFactory never rotates their
+            // handler: recycle connections here or DNS changes are never seen.
+            PooledConnectionLifetime = PooledConnectionLifetime
         });
+
+        if (retriesOnBusy > 0)
+            builder.AddHttpMessageHandler(() => new RetryOnBusyHandler(retriesOnBusy));
 
         return services;
     }

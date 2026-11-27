@@ -8,8 +8,6 @@ namespace MusicData.Api.Endpoints;
 
 public static class LyricsEndpoint
 {
-    private const int MaxNameLength = 255;
-
     public static IEndpointRouteBuilder MapLyricsApiV1(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder api = app.MapGroup("v1/lyrics")
@@ -25,17 +23,17 @@ public static class LyricsEndpoint
     public static async Task<IResult> GetAsync(
         [FromQuery] string title,
         [FromQuery] string artistName,
-        [FromQuery] string albumName,
-        [FromQuery] int duration,
+        [FromQuery] string? albumName,
+        [FromQuery] int? duration,
         [FromServices] IGetLyrics getLyrics,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(title, MaxNameLength, "Title") is { } titleError)
+        if (Validation.RequireMaxLength(title, Validation.MaxNameLength, "Title") is { } titleError)
             return titleError;
-        if (Validation.RequireMaxLength(artistName, MaxNameLength, "Artist name") is { } artistError)
+        if (Validation.RequireMaxLength(artistName, Validation.MaxNameLength, "Artist name") is { } artistError)
             return artistError;
-        if (Validation.AllowMaxLength(albumName, MaxNameLength, "Album name") is { } albumError)
+        if (Validation.AllowMaxLength(albumName, Validation.MaxNameLength, "Album name") is { } albumError)
             return albumError;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetLyrics", ActivityKind.Server);
@@ -44,11 +42,11 @@ public static class LyricsEndpoint
         if (duration > 0)
             activity?.SetTag("lyrics.duration", duration);
 
-        LyricsDto? result = await getLyrics.HandleAsync(title, artistName, albumName, duration, cancellationToken);
+        LyricsDto? result = await getLyrics.HandleAsync(title, artistName, albumName ?? string.Empty, duration ?? 0, cancellationToken);
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 }

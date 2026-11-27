@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace MusicData.Tests.Api.E2E;
 
@@ -42,5 +43,22 @@ public class AuthTests : IClassFixture<MusicDataApiFactory>
         HttpResponseMessage response = await client.GetAsync("/v1/artists/byName/Unknown");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task FailedAuthAttempts_AreRateLimited()
+    {
+        // Rate limiting has to sit in front of authentication, otherwise 401s
+        // never consume quota and the API key can be brute-forced.
+        using WebApplicationFactory<Program> limited = _factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("RateLimiting:RequestsPerMinute", "3"));
+        using HttpClient client = limited.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "wrong-key");
+
+        List<HttpStatusCode> statuses = [];
+        for (int i = 0; i < 6; i++)
+            statuses.Add((await client.GetAsync("/v1/artists/byName/Foo")).StatusCode);
+
+        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
     }
 }

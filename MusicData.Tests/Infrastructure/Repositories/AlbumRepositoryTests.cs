@@ -29,8 +29,8 @@ public class AlbumRepositoryTests : IDisposable
             MusicBrainzArtistID = "art-1"
         });
 
-        Assert.NotNull(_sut.GetByName("wasting light", "foo fighters"));
-        Assert.NotNull(_sut.GetByName("WASTING LIGHT", "FOO FIGHTERS"));
+        Assert.NotNull(_sut.GetByName("wasting light", "ART-1"));
+        Assert.NotNull(_sut.GetByName("WASTING LIGHT", "art-1"));
     }
 
     [Fact]
@@ -51,13 +51,65 @@ public class AlbumRepositoryTests : IDisposable
             MusicBrainzArtistID = "art-2"
         });
 
-        AlbumEntity? foo = _sut.GetByName("Greatest Hits", "Foo Fighters");
-        AlbumEntity? queen = _sut.GetByName("Greatest Hits", "Queen");
+        AlbumEntity? foo = _sut.GetByName("Greatest Hits", "art-1");
+        AlbumEntity? queen = _sut.GetByName("Greatest Hits", "art-2");
 
         Assert.NotNull(foo);
         Assert.NotNull(queen);
         Assert.Equal("mbid-1", foo!.MusicBrainzID);
         Assert.Equal("mbid-2", queen!.MusicBrainzID);
+    }
+
+    [Fact]
+    public void GetByName_ArtistName_DoesNotMatch_OnlyArtistMbidDoes()
+    {
+        // Regression: the by-name handler passes the artist MBID, which used
+        // to be compared against the artist *name* column and never matched.
+        _sut.Add(new AlbumEntity
+        {
+            Name = "Wasting Light",
+            Artist = "Foo Fighters",
+            MusicBrainzID = "mbid-1",
+            MusicBrainzArtistID = "art-1"
+        });
+
+        Assert.Null(_sut.GetByName("Wasting Light", "Foo Fighters"));
+        Assert.NotNull(_sut.GetByName("Wasting Light", "art-1"));
+    }
+
+    [Fact]
+    public void GetByName_Alias_MatchesCachedRow_ForTheSameArtistOnly()
+    {
+        _sut.Add(new AlbumEntity
+        {
+            Name = "Abbey Road",
+            MusicBrainzID = "mbid-1",
+            MusicBrainzArtistID = "art-1",
+            Aliases = ["abbey road (remastered)"]
+        });
+
+        Assert.Equal("mbid-1", _sut.GetByName("Abbey Road (Remastered)", "ART-1")?.MusicBrainzID);
+        Assert.Null(_sut.GetByName("Abbey Road (Remastered)", "art-2"));
+    }
+
+    [Fact]
+    public void Add_OverExistingRow_KeepsItsAliases()
+    {
+        _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1", Aliases = ["abbey road (remastered)"] });
+        _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1" });
+
+        Assert.NotNull(_sut.GetByName("Abbey Road (Remastered)", "art-1"));
+    }
+
+    [Fact]
+    public void Add_ManyDistinctAliases_KeepsOnlyTheMostRecentTwenty()
+    {
+        for (int i = 0; i < 100; i++)
+            _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1", Aliases = [$"variant {i}"] });
+
+        Assert.Equal(20, _sut.GetByMusicBrainzID("mbid-1")!.Aliases.Count);
+        Assert.NotNull(_sut.GetByName("variant 99", "art-1"));
+        Assert.Null(_sut.GetByName("variant 0", "art-1"));
     }
 
     [Fact]

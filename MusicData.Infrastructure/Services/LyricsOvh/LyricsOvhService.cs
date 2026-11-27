@@ -20,13 +20,14 @@ public class LyricsOvhService(HttpClient httpClient, JsonSerializerOptions jsonO
             string requestUrl = $"{Uri.EscapeDataString(artistName)}/{Uri.EscapeDataString(title)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-                return null;
+            if (response.IsNotFoundOrThrow())
+            return null;
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LyricsOvhRootobject? root = JsonSerializer.Deserialize<LyricsOvhRootobject>(json, jsonOptions);
 
-            if (root == null || root.Lyrics == null)
+            // Empty lyrics must not be cached and served as a 200: they are "not found".
+            if (root == null || string.IsNullOrWhiteSpace(root.Lyrics))
                 return null;
 
             lyrics = new LyricsDto()
@@ -37,14 +38,10 @@ public class LyricsOvhService(HttpClient httpClient, JsonSerializerOptions jsonO
                 Origin = "LyricsOvh"
             };
         }
-        catch (OperationCanceledException)
-        {
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "LyricsOvhService.GetLyricsAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
 
         return lyrics;

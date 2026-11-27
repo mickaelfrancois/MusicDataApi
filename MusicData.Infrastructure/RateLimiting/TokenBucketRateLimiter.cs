@@ -1,11 +1,13 @@
-﻿namespace MusicData.Infrastructure.RateLimiting;
+﻿using System.Diagnostics;
+
+namespace MusicData.Infrastructure.RateLimiting;
 
 internal sealed class TokenBucketRateLimiter
 {
     private readonly int _capacity;
     private readonly double _refillTokensPerMilliSecond;
     private double _tokens;
-    private DateTime _lastRefill;
+    private long _lastRefillTimestamp;
     private readonly object _sync = new();
 
     public TokenBucketRateLimiter(int maxRequests, TimeSpan per)
@@ -16,18 +18,19 @@ internal sealed class TokenBucketRateLimiter
         _capacity = maxRequests;
         _refillTokensPerMilliSecond = maxRequests / per.TotalMilliseconds;
         _tokens = _capacity;
-        _lastRefill = DateTime.UtcNow;
+        _lastRefillTimestamp = Stopwatch.GetTimestamp();
     }
 
     private void Refill()
     {
-        DateTime now = DateTime.UtcNow;
-        double seconds = (now - _lastRefill).TotalMilliseconds;
-        if (seconds <= 0)
+        // Monotonic clock: immune to wall-clock jumps (NTP, DST, VM resume).
+        long now = Stopwatch.GetTimestamp();
+        double elapsedMs = Stopwatch.GetElapsedTime(_lastRefillTimestamp, now).TotalMilliseconds;
+        if (elapsedMs <= 0)
             return;
 
-        _tokens = Math.Min(_capacity, _tokens + (seconds * _refillTokensPerMilliSecond));
-        _lastRefill = now;
+        _tokens = Math.Min(_capacity, _tokens + (elapsedMs * _refillTokensPerMilliSecond));
+        _lastRefillTimestamp = now;
     }
 
     public async Task WaitForAvailabilityAsync(CancellationToken cancellationToken = default)

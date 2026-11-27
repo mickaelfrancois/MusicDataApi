@@ -47,20 +47,11 @@ internal sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authen
 
     private static bool IsApiKeyValid(string providedApiKey, string configuredApiKey)
     {
-        bool keysMatch;
+        // Hash both sides so FixedTimeEquals compares equal-length buffers and
+        // the key length is not leaked through timing.
+        byte[] providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(providedApiKey));
+        byte[] configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configuredApiKey));
 
-        try
-        {
-            byte[] providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(providedApiKey));
-            byte[] configuredHash = SHA256.HashData(Encoding.UTF8.GetBytes(configuredApiKey));
-
-            keysMatch = CryptographicOperations.FixedTimeEquals(providedHash, configuredHash);
-        }
-        catch
-        {
-            keysMatch = false;
-        }
-
-        return keysMatch;
+        return CryptographicOperations.FixedTimeEquals(providedHash, configuredHash);
     }
 }

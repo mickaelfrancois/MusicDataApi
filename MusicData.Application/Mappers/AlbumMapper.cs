@@ -79,7 +79,8 @@ public static class AlbumMapper
             WikidataID = dto.WikidataID,
             Year = dto.Year,
             MusicMozID = dto.MusicMozID,
-            PictureUrl = dto.PictureUrl
+            PictureUrl = dto.PictureUrl,
+            IsPartial = dto.IsPartial
         };
 
         entity.Tracks = dto.Tracks?.Select(TrackMapper.ToEntity).Where(t => t is not null)!.ToList()!;

@@ -26,9 +26,9 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            QueryResult<Artist> artists = await _client.Artists.SearchAsync(name.Quote(), 10);
+            QueryResult<Artist> artists = await _client.Artists.Search(name.Quote(), 10).GetAsync(cancellationToken);
 
             int count = artists.Items.Count(a => a.Score == 100);
 
@@ -39,14 +39,11 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return artist.Id;
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return null;
-        }
-        catch (Exception ex)
-        {
+            // Rethrown: a failed search is not a "no match" and must not become a 404.
             logger.LogError(ex, "MusicBrainzService.FindArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {
@@ -67,7 +64,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
             QueryParameters<Release> query = new()
                                     {
@@ -77,7 +74,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
                                         { "status", "official" }
                                     };
 
-            QueryResult<Release> releases = await _client.Releases.SearchAsync(query);
+            QueryResult<Release> releases = await _client.Releases.Search(query).GetAsync(cancellationToken);
 
             int count = releases.Items.Where(r => r.Date != null).Count(a => a.Score == 100);
 
@@ -93,15 +90,10 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return new MusicBrainzReleaseInfo { ReleaseId = release.Id, ReleaseGroupId = release.ReleaseGroup?.Id };
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "FindAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {
@@ -109,6 +101,13 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
                 _concurrencySemaphore.Release();
         }
     }
+
+
+    // The Hqub client reports non-success statuses as WebServiceException (never
+    // HttpRequestException). 404 = unknown MBID, 400 = malformed MBID: both are a
+    // genuine "not found", everything else is a provider failure.
+    private static bool IsNotFound(WebServiceException ex) =>
+        ex.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest;
 
 
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
@@ -122,9 +121,9 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            Artist artist = await _client.Artists.GetAsync(musicBrainzId, "artist-rels", "url-rels");
+            Artist artist = await _client.Artists.Get(musicBrainzId, "artist-rels", "url-rels").GetAsync(cancellationToken);
 
             if (artist == null)
             {
@@ -136,15 +135,15 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(artist);
         }
-        catch (OperationCanceledException ex)
+        catch (WebServiceException ex) when (IsNotFound(ex))
         {
-            logger.LogDebug(ex, "Operation canceled");
+            logger.LogDebug(ex, "Not found upstream");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {
@@ -165,9 +164,9 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            Release release = await _client.Releases.GetAsync(releaseMusicBrainzId, "artist-rels", "url-rels", "release-groups");
+            Release release = await _client.Releases.Get(releaseMusicBrainzId, "artist-credits", "artist-rels", "url-rels", "release-groups").GetAsync(cancellationToken);
             if (release == null)
             {
                 logger.LogDebug("Release with MBID '{ReleaseMbId}' not found", releaseMusicBrainzId);
@@ -178,15 +177,15 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(release);
         }
-        catch (OperationCanceledException ex)
+        catch (WebServiceException ex) when (IsNotFound(ex))
         {
-            logger.LogDebug(ex, "Operation canceled");
+            logger.LogDebug(ex, "Not found upstream");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {

@@ -28,11 +28,8 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
             string requestUrl = $"{_apiURL}/{Uri.EscapeDataString(releaseMusicBrainzId)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("CovertArt response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             CoverArtRootObject? root = JsonSerializer.Deserialize<CoverArtRootObject>(json, jsonOptions);
@@ -45,15 +42,10 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
             logger.LogDebug("Album found: {Album}", releaseMusicBrainzId);
             return CoverArtMapper.Map(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 }

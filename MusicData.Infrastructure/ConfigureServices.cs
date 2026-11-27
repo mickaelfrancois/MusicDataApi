@@ -57,7 +57,9 @@ public static class ConfigureServices
             client => client.DefaultRequestHeaders.TryAddWithoutValidation("Content-type", "application/json"));
 
         services.AddExternalHttpClient<IMusicService, MusicBrainzService, MusicBrainzSettings>(
-            configuration, "musicbrainz", "Services:MusicBrainz");
+            configuration, "musicbrainz", "Services:MusicBrainz",
+            // MusicBrainz frequently answers 503 "busy", mostly on search.
+            retriesOnBusy: 2);
 
         services.AddExternalHttpClient<IMusicService, FanartService, FanartSettings>(
             configuration, "fanart", "Services:Fanart");
@@ -84,7 +86,7 @@ public static class ConfigureServices
 
     public static IServiceCollection AddTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"];
+        string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"]?.TrimEnd('/');
         string? newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"];
         bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(otlpEndpoint);
 
@@ -161,9 +163,10 @@ public static class ConfigureServices
         {
             options.AddPolicy("IpPolicy", httpContext =>
             {
-                string clientIp = httpContext.Connection.RemoteIpAddress?.ToString()
-                                  ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                                  ?? "unknown";
+                // Only the connection address (rewritten by UseForwardedHeaders for
+                // trusted proxies). Reading X-Forwarded-For here would let any
+                // client pick its own rate-limit bucket.
+                string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
                 return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
                 {

@@ -19,11 +19,12 @@ internal sealed class LyricsAggregator : RateLimitedAggregator<ILyricsService>, 
         if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(artistName))
             return null;
 
-        IReadOnlyList<LyricsDto> lyrics = await RunAllSafeAsync(
+        RunResult<LyricsDto> run = await RunAllSafeAsync(
             "lyrics",
             (s, ct) => s.GetLyricsAsync(title, artistName, albumName, duration, ct),
             cancellationToken);
 
+        IReadOnlyList<LyricsDto> lyrics = run.RequireItemsOrNotFound("lyrics");
         if (lyrics.Count == 0)
             return null;
 
@@ -34,7 +35,8 @@ internal sealed class LyricsAggregator : RateLimitedAggregator<ILyricsService>, 
             PlainLyrics = FirstNonEmpty(lyrics, c => c.PlainLyrics),
             SyncLyrics = FirstNonEmpty(lyrics, c => c.SyncLyrics),
             Title = FirstNonEmpty(lyrics, c => c.Title),
-            Duration = FirstGreaterThanZero(lyrics, c => c.Duration)
+            Duration = FirstGreaterThanZero(lyrics, c => c.Duration),
+            IsPartial = run.HasFailures
         };
     }
 

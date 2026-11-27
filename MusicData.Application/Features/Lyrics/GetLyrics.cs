@@ -36,14 +36,15 @@ public sealed class GetLyrics(
 
     protected override LyricsDto MapToDto(LyricsEntity entity) => entity.ToDto();
 
-    protected override void Persist(LyricsDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(LyricsKey key, LyricsDto dto) => repository.Add(dto.ToEntity());
 
     protected override string MakeLockKey(LyricsKey key) => $"lyrics:{key.ArtistName.ToLowerInvariant()}:{key.Title.ToLowerInvariant()}";
+
+    protected override bool IsNegativeHit(LyricsEntity entity) => entity.NotFound;
 
     protected override void OnNotFound(LyricsKey key)
     {
         // Negative cache marker so we don't re-hit external services for known-missing lyrics.
-        LyricsDto marker = new() { Title = key.Title, ArtistName = key.ArtistName, Origin = "NotFound" };
-        Persist(marker);
+        repository.Add(new LyricsEntity { Title = key.Title, ArtistName = key.ArtistName, NotFound = true });
     }
 }

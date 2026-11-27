@@ -60,4 +60,11 @@ public class LyricsMapperTests
         Assert.Equal("Wasting Light", roundTripped.AlbumName);
         Assert.Equal(257, roundTripped.Duration);
     }
+
+    [Fact]
+    public void DtoToEntity_CarriesIsPartial_SoTheRowGetsAShortTimeToLive()
+    {
+        Assert.True(new LyricsDto { Title = "X", IsPartial = true }.ToEntity().IsPartial);
+        Assert.False(new LyricsDto { Title = "X" }.ToEntity().IsPartial);
+    }
 }

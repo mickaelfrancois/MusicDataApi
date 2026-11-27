@@ -73,6 +73,63 @@ public class ArtistRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void GetByName_Alias_MatchesCachedRow()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["beatles"] });
+
+        Assert.Equal("mbid-1", _sut.GetByName("Beatles")?.MusicBrainzID);
+        Assert.Equal("mbid-1", _sut.GetByName("the beatles")?.MusicBrainzID);
+        Assert.Null(_sut.GetByName("beatle"));
+    }
+
+    [Fact]
+    public void Add_OverExistingRow_KeepsItsAliases()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["beatles"] });
+
+        // Refreshed through another route (by MBID, or another alias).
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Biography = "new" });
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["fab four"] });
+
+        Assert.NotNull(_sut.GetByName("Beatles"));
+        Assert.NotNull(_sut.GetByName("Fab Four"));
+        Assert.Equal(1, _db.GetCollection<ArtistEntity>("artists").Count());
+    }
+
+    [Fact]
+    public void Add_ManyDistinctAliases_KeepsOnlyTheMostRecentTwenty()
+    {
+        for (int i = 0; i < 200; i++)
+            _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = [$"variant {i}"] });
+
+        ArtistEntity stored = _db.GetCollection<ArtistEntity>("artists").FindAll().Single();
+        Assert.Equal(20, stored.Aliases.Count);
+        Assert.Equal(Enumerable.Range(180, 20).Select(i => $"variant {i}"), stored.Aliases);
+        Assert.NotNull(_sut.GetByName("Variant 199"));
+        Assert.Null(_sut.GetByName("variant 0"));
+    }
+
+    [Fact]
+    public void Add_TrivialAliasVariants_CollapseIntoOne_AndStillMatch()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["fab four"] });
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["  Fab   FOUR "] });
+
+        Assert.Equal(["fab four"], _db.GetCollection<ArtistEntity>("artists").FindAll().Single().Aliases);
+        Assert.NotNull(_sut.GetByName(" FAB  four"));
+    }
+
+    [Fact]
+    public void GetByName_StaleHomonym_DoesNotHideAFreshRow()
+    {
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        raw.Insert(new ArtistEntity { Name = "Genesis", MusicBrainzID = "mbid-stale", Version = 2, UpdateDateTime = DateTime.UtcNow.AddDays(-60) });
+        _sut.Add(new ArtistEntity { Name = "Genesis", MusicBrainzID = "mbid-fresh" });
+
+        Assert.Equal("mbid-fresh", _sut.GetByName("Genesis")?.MusicBrainzID);
+    }
+
+    [Fact]
     public void GetByName_UnknownName_ReturnsNull()
     {
         Assert.Null(_sut.GetByName("nobody"));
@@ -87,6 +144,35 @@ public class ArtistRepositoryTests : IDisposable
 
         Assert.Null(_sut.GetByMusicBrainzID("legacy-mbid"));
         Assert.Null(_sut.GetByName("Old Crow"));
+    }
+
+    [Fact]
+    public void Get_PartialRow_ExpiresAfterOneHour_CompleteRowDoesNot()
+    {
+        _sut.Add(new ArtistEntity { Name = "Partial", MusicBrainzID = "p-mbid", IsPartial = true });
+        _sut.Add(new ArtistEntity { Name = "Complete", MusicBrainzID = "c-mbid" });
+
+        Assert.NotNull(_sut.GetByMusicBrainzID("p-mbid"));
+
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        foreach (ArtistEntity row in raw.FindAll().ToList())
+        {
+            row.UpdateDateTime = DateTime.UtcNow - TimeSpan.FromHours(2);
+            raw.Update(row);
+        }
+
+        Assert.Null(_sut.GetByMusicBrainzID("p-mbid"));
+        Assert.Null(_sut.GetByName("Partial"));
+        Assert.NotNull(_sut.GetByMusicBrainzID("c-mbid"));
+    }
+
+    [Fact]
+    public void Add_CompleteResult_OverPartialRow_ClearsTheFlag()
+    {
+        _sut.Add(new ArtistEntity { Name = "Foo", MusicBrainzID = "mbid-1", IsPartial = true });
+        _sut.Add(new ArtistEntity { Name = "Foo", MusicBrainzID = "mbid-1" });
+
+        Assert.False(_sut.GetByMusicBrainzID("mbid-1")!.IsPartial);
     }
 
     [Fact]

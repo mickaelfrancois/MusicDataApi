@@ -1,6 +1,7 @@
 using LiteDB;
 using MusicData.Application.Interfaces;
 using MusicData.Domain.Entities;
+using MusicData.Shared;
 
 namespace MusicData.Infrastructure.Repositories;
 
@@ -16,9 +17,23 @@ internal sealed class ArtistRepository(ILiteDatabase database)
 
     public static void EnsureIndexes(ILiteCollection<ArtistEntity> collection)
     {
-        collection.EnsureIndex(x => x.Name, unique: false);
+        // Lookups compare LOWER(field), which a plain index on the field cannot
+        // serve (full scan): index the same expressions the queries use, and
+        // drop the plain indexes older databases still carry.
+        collection.DropIndex("Name");
+        collection.EnsureIndex("idx_name_lower", "LOWER($.Name)");
+        collection.EnsureIndex("idx_mbid_lower", "LOWER($.MusicBrainzID)");
         collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
+        collection.EnsureIndex(AliasIndexName, "$.Aliases[*]");
     }
+
+    internal const string AliasIndexName = "idx_aliases";
+    internal const string ByNameQuery = "LOWER($.Name) = @0";
+    internal const string ByAliasQuery = "$.Aliases[*] ANY = @0";
+
+
+    protected override void MergeExisting(ArtistEntity incoming, ArtistEntity existing) =>
+        incoming.Aliases = NameAliases.Merge(existing.Aliases, incoming.Aliases);
 
 
     protected override ArtistEntity? FindExisting(ArtistEntity incoming) =>
@@ -30,6 +45,11 @@ internal sealed class ArtistRepository(ILiteDatabase database)
     public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) =>
         FreshOrNull(FindByLowerField(nameof(ArtistEntity.MusicBrainzID), musicBrainzID));
 
-    public ArtistEntity? GetByName(string name) =>
-        FreshOrNull(FindByLowerField(nameof(ArtistEntity.Name), name));
+    public ArtistEntity? GetByName(string name)
+    {
+        string lowered = (name ?? string.Empty).ToLowerInvariant();
+
+        return FirstFreshOrNull(ByNameQuery, lowered)
+            ?? FirstFreshOrNull(ByAliasQuery, NameAliases.Normalize(name));
+    }
 }

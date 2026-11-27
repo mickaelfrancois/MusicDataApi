@@ -33,7 +33,7 @@ public class GetLyricsTests
 
         Assert.Null(result);
         _repo.Received(1).Add(Arg.Is<LyricsEntity>(e =>
-            e.Title == "Walk" && e.ArtistName == "Foo Fighters"));
+            e.Title == "Walk" && e.ArtistName == "Foo Fighters" && e.NotFound));
     }
 
     [Fact]
@@ -51,6 +51,32 @@ public class GetLyricsTests
     }
 
     [Fact]
+    public async Task NegativeCacheMarker_ReturnsNull_AndDoesNotCallAggregator()
+    {
+        _repo.Get("Walk", "Foo Fighters")
+             .Returns(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", NotFound = true });
+
+        LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "", 0);
+
+        Assert.Null(result);
+        await _aggregator.DidNotReceive().GetLyricsAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PartialResult_IsReturned_AndPersistedFlaggedPartial()
+    {
+        _repo.Get("Walk", "Foo Fighters").Returns((LyricsEntity?)null);
+        LyricsDto partial = new() { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "...", IsPartial = true };
+        _aggregator.GetLyricsAsync("Walk", "Foo Fighters", "", 0, Arg.Any<CancellationToken>()).Returns(partial);
+
+        LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "", 0);
+
+        Assert.Same(partial, result);
+        _repo.Received(1).Add(Arg.Is<LyricsEntity>(e => e.IsPartial && e.PlainLyrics == "..."));
+    }
+
+    [Fact]
     public async Task CacheMiss_AggregatorReturnsLyrics_PersistsAndReturns()
     {
         _repo.Get("Walk", "Foo Fighters").Returns((LyricsEntity?)null);
@@ -61,7 +87,7 @@ public class GetLyricsTests
         LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "Wasting Light", 257);
 
         Assert.Same(fromAgg, result);
-        _repo.Received(1).Add(Arg.Any<LyricsEntity>());
+        _repo.Received(1).Add(Arg.Is<LyricsEntity>(e => !e.IsPartial));
     }
 
 

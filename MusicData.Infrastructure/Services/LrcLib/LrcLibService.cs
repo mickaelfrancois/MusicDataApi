@@ -10,19 +10,23 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 {
     public async Task<LyricsDto?> GetLyricsAsync(string title, string artistName, string albumName, int duration, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName) || string.IsNullOrEmpty(albumName))
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(artistName))
             return null;
 
         LyricsDto? lyrics = null;
 
         try
         {
-            LrcLibRootobject? root = await GetLyricsWithDurationAsync(title, artistName, albumName, duration, cancellationToken);
+            // /api/get needs album AND duration; without them only /api/search can match.
+            LrcLibRootobject? root = !string.IsNullOrEmpty(albumName) && duration > 0
+                ? await GetLyricsWithDurationAsync(title, artistName, albumName, duration, cancellationToken)
+                : null;
 
-            if (root is null)
+            // A hit without any lyrics (instrumental track) is no hit at all.
+            if (!HasLyrics(root))
                 root = await SearchLyricsAsync(title, artistName, albumName, cancellationToken);
 
-            if (root is null)
+            if (root is null || !HasLyrics(root))
                 return null;
 
             lyrics = new LyricsDto()
@@ -30,20 +34,16 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
                 Title = title,
                 ArtistName = artistName,
                 AlbumName = albumName,
-                PlainLyrics = root.PlainLyrics.Trim(),
-                SyncLyrics = root.SyncedLyrics.Trim(),
+                PlainLyrics = (root.PlainLyrics ?? string.Empty).Trim(),
+                SyncLyrics = (root.SyncedLyrics ?? string.Empty).Trim(),
                 Duration = (int)root.Duration,
                 Origin = "LrcLib"
             };
         }
-        catch (OperationCanceledException)
-        {
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "LrcLibService.GetLyricsAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
 
         return lyrics;
@@ -55,7 +55,7 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
         string requestUrl = $"api/get?artist_name={Uri.EscapeDataString(artistName)}&track_name={Uri.EscapeDataString(title)}&album_name={Uri.EscapeDataString(albumName)}&duration={duration}";
 
         using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        if (response.IsNotFoundOrThrow())
             return null;
 
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -66,18 +66,25 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
     private async Task<LrcLibRootobject?> SearchLyricsAsync(string title, string artistName, string albumName, CancellationToken cancellationToken)
     {
-        string requestUrl = $"api/search?artist_name={Uri.EscapeDataString(artistName)}&track_name={Uri.EscapeDataString(title)}&album_name={Uri.EscapeDataString(albumName)}";
+        string requestUrl = $"api/search?artist_name={Uri.EscapeDataString(artistName)}&track_name={Uri.EscapeDataString(title)}";
+        if (!string.IsNullOrEmpty(albumName))
+            requestUrl += $"&album_name={Uri.EscapeDataString(albumName)}";
 
         using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        if (response.IsNotFoundOrThrow())
             return null;
 
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
         LrcLibRootobject[]? lyrics = JsonSerializer.Deserialize<LrcLibRootobject[]>(json, jsonOptions);
 
-        return lyrics?.FirstOrDefault() ?? null;
+        return lyrics?.FirstOrDefault(HasLyrics);
     }
+
+
+    // Empty lyrics must not be cached and served as a 200: they are "not found".
+    private static bool HasLyrics(LrcLibRootobject? root) =>
+        root is not null && (!string.IsNullOrWhiteSpace(root.PlainLyrics) || !string.IsNullOrWhiteSpace(root.SyncedLyrics));
 }
 
 
@@ -95,9 +102,9 @@ public class LrcLibRootobject
 
     public bool Instrumental { get; set; }
 
-    public string PlainLyrics { get; set; } = string.Empty;
+    public string? PlainLyrics { get; set; } = string.Empty;
 
-    public string SyncedLyrics { get; set; } = string.Empty;
+    public string? SyncedLyrics { get; set; } = string.Empty;
 }
 
 

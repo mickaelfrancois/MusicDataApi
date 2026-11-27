@@ -33,11 +33,13 @@ public sealed class GetAlbumByMusicBrainzId(
         => repository.GetByMusicBrainzID(key.AlbumMusicBrainzId);
 
     protected override Task<AlbumDto?> FetchAsync(AlbumByMbidKey key, CancellationToken cancellationToken)
-        => aggregator.GetAlbumByMusicBrainzIdAsync(key.AlbumMusicBrainzId, key.ArtistMusicBrainzId, cancellationToken);
+        // The caller-supplied artist MBID is deliberately not forwarded: what is
+        // cached (and served to everyone) comes from the MusicBrainz release.
+        => aggregator.GetAlbumByMusicBrainzIdAsync(key.AlbumMusicBrainzId, cancellationToken);
 
     protected override AlbumDto MapToDto(AlbumEntity entity) => entity.ToDto();
 
-    protected override void Persist(AlbumDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(AlbumByMbidKey key, AlbumDto dto) => repository.Add(dto.ToEntity());
 
     protected override string MakeLockKey(AlbumByMbidKey key) => $"album:bymbid:{key.AlbumMusicBrainzId.ToLowerInvariant()}";
 }
