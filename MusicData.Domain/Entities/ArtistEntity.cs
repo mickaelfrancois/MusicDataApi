@@ -8,6 +8,8 @@ public class ArtistEntity : IVersionedEntity
 
     public int Version { get; set; }
 
+    public bool IsPartial { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string MusicBrainzID { get; set; } = string.Empty;

@@ -96,6 +96,18 @@ public class LyricsRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Get_PartialLyrics_ExpireAfterOneHour()
+    {
+        _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "lyrics", IsPartial = true });
+
+        Assert.NotNull(_sut.Get("Walk", "Foo Fighters"));
+
+        Age("Walk", TimeSpan.FromHours(2));
+
+        Assert.Null(_sut.Get("Walk", "Foo Fighters"));
+    }
+
+    [Fact]
     public void Add_OverExpiredRow_RefreshesItInPlace()
     {
         _sut.Add(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", NotFound = true });

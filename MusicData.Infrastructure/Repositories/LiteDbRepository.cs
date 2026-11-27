@@ -23,9 +23,13 @@ internal abstract class LiteDbRepository<TEntity>
     /// <summary>
     /// How long a cached row stays valid. Expired rows are treated as cache
     /// misses (and overwritten in place by the next <see cref="Add"/>), so
-    /// provider data never goes stale forever.
+    /// provider data never goes stale forever. Partial rows (a secondary
+    /// provider failed) expire quickly so the missing data is retried soon.
     /// </summary>
-    protected virtual TimeSpan TimeToLive(TEntity entity) => TimeSpan.FromDays(30);
+    protected virtual TimeSpan TimeToLive(TEntity entity) =>
+        entity.IsPartial ? PartialTimeToLive : TimeSpan.FromDays(30);
+
+    internal static readonly TimeSpan PartialTimeToLive = TimeSpan.FromHours(1);
 
     /// <summary>
     /// Returns the row that <paramref name="incoming"/> should overwrite, or

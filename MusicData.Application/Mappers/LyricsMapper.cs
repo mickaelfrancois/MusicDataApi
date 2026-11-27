@@ -36,7 +36,8 @@ public static class LyricsMapper
             AlbumName = dto.AlbumName,
             Duration = dto.Duration,
             PlainLyrics = dto.PlainLyrics,
-            SyncLyrics = dto.SyncLyrics
+            SyncLyrics = dto.SyncLyrics,
+            IsPartial = dto.IsPartial
         };
 
         return entity;

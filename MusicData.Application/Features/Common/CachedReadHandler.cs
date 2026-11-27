@@ -64,16 +64,17 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
             return null;
         }
 
-        if (fetched.IsPartial)
-        {
-            _logger.LogWarning("{Entity} '{Key}' is incomplete (a provider failed); returned but not cached.", EntityKind, key);
-            Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "partial" } });
-            return fetched;
-        }
-
+        // A partial DTO (a secondary provider failed) is persisted too: the
+        // mappers carry IsPartial onto the entity and the repository gives such
+        // rows a short time-to-live, so one flaky provider doesn't disable caching.
         Persist(fetched);
-        _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
-        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "external" } });
+
+        if (fetched.IsPartial)
+            _logger.LogWarning("{Entity} '{Key}' is incomplete (a provider failed); cached briefly.", EntityKind, key);
+        else
+            _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
+
+        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", fetched.IsPartial ? "partial" : "external" } });
         return fetched;
     }
 

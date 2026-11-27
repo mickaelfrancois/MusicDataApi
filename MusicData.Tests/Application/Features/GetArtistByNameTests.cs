@@ -62,6 +62,19 @@ public class GetArtistByNameTests
     }
 
     [Fact]
+    public async Task CacheMiss_PartialResult_IsPersistedFlaggedPartial()
+    {
+        _repo.GetByName("Foo Fighters").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("Foo Fighters", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "Foo Fighters", MusicBrainzID = "id", IsPartial = true });
+
+        ArtistDto? result = await _sut.HandleAsync("Foo Fighters");
+
+        Assert.NotNull(result);
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Name == "Foo Fighters" && e.IsPartial));
+    }
+
+    [Fact]
     public async Task CacheMiss_AggregatorReturnsNull_DoesNotPersist_ReturnsNull()
     {
         _repo.GetByName("ghost").Returns((ArtistEntity?)null);

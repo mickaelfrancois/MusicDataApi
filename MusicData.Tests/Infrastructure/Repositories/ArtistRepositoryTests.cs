@@ -90,6 +90,35 @@ public class ArtistRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void Get_PartialRow_ExpiresAfterOneHour_CompleteRowDoesNot()
+    {
+        _sut.Add(new ArtistEntity { Name = "Partial", MusicBrainzID = "p-mbid", IsPartial = true });
+        _sut.Add(new ArtistEntity { Name = "Complete", MusicBrainzID = "c-mbid" });
+
+        Assert.NotNull(_sut.GetByMusicBrainzID("p-mbid"));
+
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        foreach (ArtistEntity row in raw.FindAll().ToList())
+        {
+            row.UpdateDateTime = DateTime.UtcNow - TimeSpan.FromHours(2);
+            raw.Update(row);
+        }
+
+        Assert.Null(_sut.GetByMusicBrainzID("p-mbid"));
+        Assert.Null(_sut.GetByName("Partial"));
+        Assert.NotNull(_sut.GetByMusicBrainzID("c-mbid"));
+    }
+
+    [Fact]
+    public void Add_CompleteResult_OverPartialRow_ClearsTheFlag()
+    {
+        _sut.Add(new ArtistEntity { Name = "Foo", MusicBrainzID = "mbid-1", IsPartial = true });
+        _sut.Add(new ArtistEntity { Name = "Foo", MusicBrainzID = "mbid-1" });
+
+        Assert.False(_sut.GetByMusicBrainzID("mbid-1")!.IsPartial);
+    }
+
+    [Fact]
     public void Add_StampsCurrentSchemaVersion()
     {
         _sut.Add(new ArtistEntity { Name = "Fresh", MusicBrainzID = "fresh-mbid" });

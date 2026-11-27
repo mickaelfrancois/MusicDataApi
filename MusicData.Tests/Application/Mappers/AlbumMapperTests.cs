@@ -101,4 +101,11 @@ public class AlbumMapperTests
         Assert.Equal(a.Genre, b.Genre);
         Assert.Equal(a.ReleaseDate, b.ReleaseDate);
     }
+
+    [Fact]
+    public void DtoToEntity_CarriesIsPartial_SoTheRowGetsAShortTimeToLive()
+    {
+        Assert.True(new AlbumDto { Name = "X", IsPartial = true }.ToEntity().IsPartial);
+        Assert.False(new AlbumDto { Name = "X" }.ToEntity().IsPartial);
+    }
 }

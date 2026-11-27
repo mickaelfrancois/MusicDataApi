@@ -64,7 +64,7 @@ public class GetLyricsTests
     }
 
     [Fact]
-    public async Task PartialResult_IsReturned_ButNotPersisted()
+    public async Task PartialResult_IsReturned_AndPersistedFlaggedPartial()
     {
         _repo.Get("Walk", "Foo Fighters").Returns((LyricsEntity?)null);
         LyricsDto partial = new() { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "...", IsPartial = true };
@@ -73,7 +73,7 @@ public class GetLyricsTests
         LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "", 0);
 
         Assert.Same(partial, result);
-        _repo.DidNotReceive().Add(Arg.Any<LyricsEntity>());
+        _repo.Received(1).Add(Arg.Is<LyricsEntity>(e => e.IsPartial && e.PlainLyrics == "..."));
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class GetLyricsTests
         LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "Wasting Light", 257);
 
         Assert.Same(fromAgg, result);
-        _repo.Received(1).Add(Arg.Any<LyricsEntity>());
+        _repo.Received(1).Add(Arg.Is<LyricsEntity>(e => !e.IsPartial));
     }
 
 
