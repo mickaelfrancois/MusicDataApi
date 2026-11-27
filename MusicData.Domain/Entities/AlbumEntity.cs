@@ -63,6 +63,13 @@ public class AlbumEntity : IVersionedEntity
     public DateTime? ReleaseDate { get; set; }
 
     public List<Track> Tracks { get; set; } = [];
+
+    /// <summary>
+    /// Lower-cased names that were queried and resolved to this row although
+    /// they differ from <see cref="Name"/> (e.g. "beatles" for "The Beatles"),
+    /// so the by-name lookup hits the cache for them too.
+    /// </summary>
+    public List<string> Aliases { get; set; } = [];
 }
 
 public class Track

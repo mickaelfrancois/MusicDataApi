@@ -30,7 +30,7 @@ public sealed class GetArtistByMusicBrainzId(
 
     protected override ArtistDto MapToDto(ArtistEntity entity) => entity.ToDto();
 
-    protected override void Persist(ArtistDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(string musicBrainzId, ArtistDto dto) => repository.Add(dto.ToEntity());
 
     protected override string MakeLockKey(string musicBrainzId) => $"artist:bymbid:{musicBrainzId.ToLowerInvariant()}";
 }

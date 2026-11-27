@@ -48,10 +48,19 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetArtistAsync(musicBrainzId, ct),
             cancellationToken);
 
-        if (RequireIdentity(run, "artist") is null)
+        ArtistDto? identity = RequireIdentity(run, "artist");
+        if (identity is null)
             return null;
 
         ArtistDto merged = BuildMergedArtist(run.Items);
+
+        // Identity comes from MusicBrainz, not from the first provider that has
+        // a name/MBID (LastFm may answer with another spelling or MBID): the
+        // cache is keyed on these two fields.
+        if (!string.IsNullOrWhiteSpace(identity.Name))
+            merged.Name = identity.Name;
+        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
+            merged.MusicBrainzID = identity.MusicBrainzID;
         merged.IsPartial = run.HasFailures;
         return merged;
     }
@@ -78,10 +87,15 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
             cancellationToken);
 
-        if (RequireIdentity(run, "album") is null)
+        AlbumDto? identity = RequireIdentity(run, "album");
+        if (identity is null)
             return null;
 
         AlbumDto merged = BuildMergedAlbum(run.Items);
+        if (!string.IsNullOrWhiteSpace(identity.Name))
+            merged.Name = identity.Name;
+        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
+            merged.MusicBrainzID = identity.MusicBrainzID;
         merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
@@ -98,10 +112,15 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
             cancellationToken);
 
-        if (RequireIdentity(run, "album") is null)
+        AlbumDto? identity = RequireIdentity(run, "album");
+        if (identity is null)
             return null;
 
         AlbumDto merged = BuildMergedAlbum(run.Items);
+        if (!string.IsNullOrWhiteSpace(identity.Name))
+            merged.Name = identity.Name;
+        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
+            merged.MusicBrainzID = identity.MusicBrainzID;
         merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;

@@ -28,7 +28,7 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
 
     protected abstract TDto MapToDto(TEntity entity);
 
-    protected abstract void Persist(TDto dto);
+    protected abstract void Persist(TKey key, TDto dto);
 
     protected abstract string MakeLockKey(TKey key);
 
@@ -67,7 +67,7 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
         // A partial DTO (a secondary provider failed) is persisted too: the
         // mappers carry IsPartial onto the entity and the repository gives such
         // rows a short time-to-live, so one flaky provider doesn't disable caching.
-        Persist(fetched);
+        Persist(key, fetched);
 
         if (fetched.IsPartial)
             _logger.LogWarning("{Entity} '{Key}' is incomplete (a provider failed); cached briefly.", EntityKind, key);

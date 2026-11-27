@@ -78,6 +78,30 @@ public class AlbumRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void GetByName_Alias_MatchesCachedRow_ForTheSameArtistOnly()
+    {
+        _sut.Add(new AlbumEntity
+        {
+            Name = "Abbey Road",
+            MusicBrainzID = "mbid-1",
+            MusicBrainzArtistID = "art-1",
+            Aliases = ["abbey road (remastered)"]
+        });
+
+        Assert.Equal("mbid-1", _sut.GetByName("Abbey Road (Remastered)", "ART-1")?.MusicBrainzID);
+        Assert.Null(_sut.GetByName("Abbey Road (Remastered)", "art-2"));
+    }
+
+    [Fact]
+    public void Add_OverExistingRow_KeepsItsAliases()
+    {
+        _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1", Aliases = ["abbey road (remastered)"] });
+        _sut.Add(new AlbumEntity { Name = "Abbey Road", MusicBrainzID = "mbid-1", MusicBrainzArtistID = "art-1" });
+
+        Assert.NotNull(_sut.GetByName("Abbey Road (Remastered)", "art-1"));
+    }
+
+    [Fact]
     public void GetByMusicBrainzID_DifferentCase_MatchesCachedRow()
     {
         _sut.Add(new AlbumEntity

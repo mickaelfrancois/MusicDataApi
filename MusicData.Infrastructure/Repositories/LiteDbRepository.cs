@@ -38,6 +38,13 @@ internal abstract class LiteDbRepository<TEntity>
     protected abstract TEntity? FindExisting(TEntity incoming);
 
 
+    /// <summary>
+    /// Lets a subclass carry data from the row being overwritten onto
+    /// <paramref name="incoming"/> (e.g. accumulated name aliases).
+    /// </summary>
+    protected virtual void MergeExisting(TEntity incoming, TEntity existing) { }
+
+
     public void Add(TEntity entity)
     {
         entity.UpdateDateTime = DateTime.UtcNow;
@@ -61,6 +68,7 @@ internal abstract class LiteDbRepository<TEntity>
         if (existing is not null)
         {
             entity.Id = existing.Id;
+            MergeExisting(entity, existing);
             Collection.Update(entity);
             return true;
         }
@@ -87,6 +95,15 @@ internal abstract class LiteDbRepository<TEntity>
         || DateTime.UtcNow - entity.UpdateDateTime > TimeToLive(entity)
             ? null
             : entity;
+
+
+    /// <summary>
+    /// First still-valid row matching <paramref name="predicate"/>: several rows
+    /// can match a name (homonyms, aliases) and a stale one must not hide a
+    /// fresh one.
+    /// </summary>
+    protected TEntity? FirstFreshOrNull(string predicate, params BsonValue[] args) =>
+        Collection.Query().Where(predicate, args).ToEnumerable().Select(FreshOrNull).FirstOrDefault(e => e is not null);
 
 
     /// <summary>

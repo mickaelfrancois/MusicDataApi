@@ -37,7 +37,17 @@ public sealed class GetAlbumByName(
 
     protected override AlbumDto MapToDto(AlbumEntity entity) => entity.ToDto();
 
-    protected override void Persist(AlbumDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(AlbumByNameKey key, AlbumDto dto)
+    {
+        AlbumEntity entity = dto.ToEntity();
+
+        // Stored under the canonical (MusicBrainz) title; remember the queried
+        // name too so the next by-name lookup hits the cache.
+        if (!string.Equals(entity.Name, key.AlbumName, StringComparison.OrdinalIgnoreCase))
+            entity.Aliases.Add(key.AlbumName.ToLowerInvariant());
+
+        repository.Add(entity);
+    }
 
     protected override string MakeLockKey(AlbumByNameKey key)
         => $"album:byname:{key.ArtistMusicBrainzId.ToLowerInvariant()}:{key.AlbumName.ToLowerInvariant()}";

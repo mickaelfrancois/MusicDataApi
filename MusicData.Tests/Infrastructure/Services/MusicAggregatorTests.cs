@@ -77,6 +77,33 @@ public class MusicAggregatorTests
     }
 
     [Fact]
+    public async Task Artist_IdentityComesFromMusicBrainz_NotFromAnEarlierProvider()
+    {
+        // LastFm is registered first and answers with another spelling and MBID.
+        FakeService lastFm = new() { Artist = _ => new ArtistDto { Name = "Beatles, The", MusicBrainzID = "lastfm-mbid", Biography = "bio" } };
+        FakeMusicBrainz musicBrainz = new() { Artist = id => new ArtistDto { Name = "The Beatles", MusicBrainzID = id } };
+
+        ArtistDto? artist = await Create(lastFm, musicBrainz).GetArtistByMusicBrainzIdAsync(ArtistMbid, CancellationToken.None);
+
+        Assert.Equal("The Beatles", artist!.Name);
+        Assert.Equal(ArtistMbid, artist.MusicBrainzID);
+        Assert.Equal("bio", artist.Biography);
+    }
+
+    [Fact]
+    public async Task Album_IdentityComesFromMusicBrainz_NotFromAnEarlierProvider()
+    {
+        FakeService lastFm = new() { Album = (_, _) => new AlbumDto { Name = "Abbey Road (Remastered)", MusicBrainzID = "lastfm-mbid", Artist = "The Beatles" } };
+        FakeMusicBrainz musicBrainz = new() { Album = (id, _) => new AlbumDto { Name = "Abbey Road", MusicBrainzID = id } };
+
+        AlbumDto? album = await Create(lastFm, musicBrainz).GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, CancellationToken.None);
+
+        Assert.Equal("Abbey Road", album!.Name);
+        Assert.Equal(AlbumMbid, album.MusicBrainzID);
+        Assert.Equal("The Beatles", album.Artist);
+    }
+
+    [Fact]
     public async Task ArtistByName_LookupFailed_IsUnavailable_NotNotFound()
     {
         FakeMusicBrainz musicBrainz = new() { FindArtist = _ => throw new TimeoutException("busy") };

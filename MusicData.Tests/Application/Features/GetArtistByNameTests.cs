@@ -62,6 +62,30 @@ public class GetArtistByNameTests
     }
 
     [Fact]
+    public async Task CacheMiss_ResolvedUnderAnotherName_PersistsTheQueriedNameAsAlias()
+    {
+        _repo.GetByName("Beatles").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("Beatles");
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Name == "The Beatles" && e.Aliases.SequenceEqual(new[] { "beatles" })));
+    }
+
+    [Fact]
+    public async Task CacheMiss_ResolvedUnderTheSameName_PersistsNoAlias()
+    {
+        _repo.GetByName("the beatles").Returns((ArtistEntity?)null);
+        _aggregator.GetArtistByNameAsync("the beatles", Arg.Any<CancellationToken>())
+                   .Returns(new ArtistDto { Name = "The Beatles", MusicBrainzID = "id" });
+
+        await _sut.HandleAsync("the beatles");
+
+        _repo.Received(1).Add(Arg.Is<ArtistEntity>(e => e.Aliases.Count == 0));
+    }
+
+    [Fact]
     public async Task CacheMiss_PartialResult_IsPersistedFlaggedPartial()
     {
         _repo.GetByName("Foo Fighters").Returns((ArtistEntity?)null);

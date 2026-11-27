@@ -60,6 +60,25 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
+    public async Task ByName_ResolvedUnderCanonicalName_SecondRequestIsServedFromCache()
+    {
+        _factory.MusicAggregator
+            .GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>())
+            .Returns(_ => new ArtistDto { Name = "The Beatles", MusicBrainzID = "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", Origin = "Aggregated" });
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        // no-cache only bypasses the 30 s HTTP response cache, not the LiteDB one.
+        client.DefaultRequestHeaders.CacheControl = new() { NoCache = true };
+        ArtistDto? first = await client.GetFromJsonAsync<ArtistDto>("/v1/artists/byName/Beatles");
+        ArtistDto? second = await client.GetFromJsonAsync<ArtistDto>("/v1/artists/byName/Beatles");
+
+        Assert.Equal("The Beatles", first!.Name);
+        Assert.Equal("The Beatles", second!.Name);
+        Assert.Equal("Cache", second.Origin);
+        await _factory.MusicAggregator.Received(1).GetArtistByNameAsync("Beatles", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ByName_HappyPath_SetsPublicCacheHeaders()
     {
         _factory.MusicAggregator

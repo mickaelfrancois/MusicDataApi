@@ -30,7 +30,17 @@ public sealed class GetArtistByName(
 
     protected override ArtistDto MapToDto(ArtistEntity entity) => entity.ToDto();
 
-    protected override void Persist(ArtistDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(string artistName, ArtistDto dto)
+    {
+        ArtistEntity entity = dto.ToEntity();
+
+        // The artist is stored under its canonical (MusicBrainz) name; remember
+        // the queried name too, or "Beatles" would never hit "The Beatles".
+        if (!string.Equals(entity.Name, artistName, StringComparison.OrdinalIgnoreCase))
+            entity.Aliases.Add(artistName.ToLowerInvariant());
+
+        repository.Add(entity);
+    }
 
     protected override string MakeLockKey(string artistName) => $"artist:byname:{artistName.ToLowerInvariant()}";
 }

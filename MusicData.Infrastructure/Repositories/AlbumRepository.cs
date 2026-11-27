@@ -16,7 +16,16 @@ internal sealed class AlbumRepository(ILiteDatabase database)
         collection.EnsureIndex(x => x.Artist, unique: false);
         collection.EnsureIndex(x => x.MusicBrainzArtistID, unique: false);
         collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
+        collection.EnsureIndex(AliasIndexName, "$.Aliases[*]");
     }
+
+    internal const string AliasIndexName = "idx_aliases";
+    internal const string ByNameQuery = "LOWER($.Name) = @0 AND LOWER($.MusicBrainzArtistID) = @1";
+    internal const string ByAliasQuery = "$.Aliases[*] ANY = @0 AND LOWER($.MusicBrainzArtistID) = @1";
+
+
+    protected override void MergeExisting(AlbumEntity incoming, AlbumEntity existing) =>
+        incoming.Aliases = incoming.Aliases.Union(existing.Aliases).ToList();
 
 
     protected override AlbumEntity? FindExisting(AlbumEntity incoming) =>
@@ -31,9 +40,12 @@ internal sealed class AlbumRepository(ILiteDatabase database)
     public AlbumEntity? GetByMusicBrainzID(string musicBrainzID) =>
         FreshOrNull(FindByLowerField(nameof(AlbumEntity.MusicBrainzID), musicBrainzID));
 
-    public AlbumEntity? GetByName(string albumName, string artistMusicBrainzId) =>
-        FreshOrNull(Collection.FindOne(
-            "LOWER($.Name) = @0 AND LOWER($.MusicBrainzArtistID) = @1",
-            (albumName ?? string.Empty).ToLowerInvariant(),
-            (artistMusicBrainzId ?? string.Empty).ToLowerInvariant()));
+    public AlbumEntity? GetByName(string albumName, string artistMusicBrainzId)
+    {
+        string loweredName = (albumName ?? string.Empty).ToLowerInvariant();
+        string loweredArtistId = (artistMusicBrainzId ?? string.Empty).ToLowerInvariant();
+
+        return FirstFreshOrNull(ByNameQuery, loweredName, loweredArtistId)
+            ?? FirstFreshOrNull(ByAliasQuery, loweredName, loweredArtistId);
+    }
 }

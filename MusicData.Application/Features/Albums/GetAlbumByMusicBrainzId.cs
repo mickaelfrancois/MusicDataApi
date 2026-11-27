@@ -37,7 +37,7 @@ public sealed class GetAlbumByMusicBrainzId(
 
     protected override AlbumDto MapToDto(AlbumEntity entity) => entity.ToDto();
 
-    protected override void Persist(AlbumDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(AlbumByMbidKey key, AlbumDto dto) => repository.Add(dto.ToEntity());
 
     protected override string MakeLockKey(AlbumByMbidKey key) => $"album:bymbid:{key.AlbumMusicBrainzId.ToLowerInvariant()}";
 }

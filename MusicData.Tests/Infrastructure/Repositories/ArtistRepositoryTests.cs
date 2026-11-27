@@ -73,6 +73,40 @@ public class ArtistRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void GetByName_Alias_MatchesCachedRow()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["beatles"] });
+
+        Assert.Equal("mbid-1", _sut.GetByName("Beatles")?.MusicBrainzID);
+        Assert.Equal("mbid-1", _sut.GetByName("the beatles")?.MusicBrainzID);
+        Assert.Null(_sut.GetByName("beatle"));
+    }
+
+    [Fact]
+    public void Add_OverExistingRow_KeepsItsAliases()
+    {
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["beatles"] });
+
+        // Refreshed through another route (by MBID, or another alias).
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Biography = "new" });
+        _sut.Add(new ArtistEntity { Name = "The Beatles", MusicBrainzID = "mbid-1", Aliases = ["fab four"] });
+
+        Assert.NotNull(_sut.GetByName("Beatles"));
+        Assert.NotNull(_sut.GetByName("Fab Four"));
+        Assert.Equal(1, _db.GetCollection<ArtistEntity>("artists").Count());
+    }
+
+    [Fact]
+    public void GetByName_StaleHomonym_DoesNotHideAFreshRow()
+    {
+        ILiteCollection<ArtistEntity> raw = _db.GetCollection<ArtistEntity>("artists");
+        raw.Insert(new ArtistEntity { Name = "Genesis", MusicBrainzID = "mbid-stale", Version = 2, UpdateDateTime = DateTime.UtcNow.AddDays(-60) });
+        _sut.Add(new ArtistEntity { Name = "Genesis", MusicBrainzID = "mbid-fresh" });
+
+        Assert.Equal("mbid-fresh", _sut.GetByName("Genesis")?.MusicBrainzID);
+    }
+
+    [Fact]
     public void GetByName_UnknownName_ReturnsNull()
     {
         Assert.Null(_sut.GetByName("nobody"));

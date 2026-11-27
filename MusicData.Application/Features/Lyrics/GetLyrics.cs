@@ -36,7 +36,7 @@ public sealed class GetLyrics(
 
     protected override LyricsDto MapToDto(LyricsEntity entity) => entity.ToDto();
 
-    protected override void Persist(LyricsDto dto) => repository.Add(dto.ToEntity());
+    protected override void Persist(LyricsKey key, LyricsDto dto) => repository.Add(dto.ToEntity());
 
     protected override string MakeLockKey(LyricsKey key) => $"lyrics:{key.ArtistName.ToLowerInvariant()}:{key.Title.ToLowerInvariant()}";
 

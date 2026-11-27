@@ -18,7 +18,16 @@ internal sealed class ArtistRepository(ILiteDatabase database)
     {
         collection.EnsureIndex(x => x.Name, unique: false);
         collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
+        collection.EnsureIndex(AliasIndexName, "$.Aliases[*]");
     }
+
+    internal const string AliasIndexName = "idx_aliases";
+    internal const string ByNameQuery = "LOWER($.Name) = @0";
+    internal const string ByAliasQuery = "$.Aliases[*] ANY = @0";
+
+
+    protected override void MergeExisting(ArtistEntity incoming, ArtistEntity existing) =>
+        incoming.Aliases = incoming.Aliases.Union(existing.Aliases).ToList();
 
 
     protected override ArtistEntity? FindExisting(ArtistEntity incoming) =>
@@ -30,6 +39,11 @@ internal sealed class ArtistRepository(ILiteDatabase database)
     public ArtistEntity? GetByMusicBrainzID(string musicBrainzID) =>
         FreshOrNull(FindByLowerField(nameof(ArtistEntity.MusicBrainzID), musicBrainzID));
 
-    public ArtistEntity? GetByName(string name) =>
-        FreshOrNull(FindByLowerField(nameof(ArtistEntity.Name), name));
+    public ArtistEntity? GetByName(string name)
+    {
+        string lowered = (name ?? string.Empty).ToLowerInvariant();
+
+        return FirstFreshOrNull(ByNameQuery, lowered)
+            ?? FirstFreshOrNull(ByAliasQuery, lowered);
+    }
 }
