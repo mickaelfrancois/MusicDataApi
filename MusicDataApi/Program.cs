@@ -55,10 +55,13 @@ app.UseForwardedHeaders(forwardOptions);
 if (!app.Environment.IsEnvironment("Docker"))
     app.UseHttpsRedirection();
 
+// Rate limiting must run before authentication so failed API-key attempts
+// (401) are throttled too, otherwise the key could be brute-forced freely.
+app.UseIpRateLimiting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseResponseCaching();
-app.UseIpRateLimiting();
 
 app.MapArtistsApiV1();
 app.MapAlbumsApiV1();
