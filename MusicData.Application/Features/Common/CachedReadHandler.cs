@@ -36,6 +36,12 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
 
     protected virtual void OnNotFound(TKey key) { }
 
+    /// <summary>
+    /// True when the cached row is a negative-cache marker ("known missing"):
+    /// the handler then answers null without calling any external service.
+    /// </summary>
+    protected virtual bool IsNegativeHit(TEntity entity) => false;
+
     public async Task<TDto?> HandleAsync(TKey key, CancellationToken cancellationToken = default)
     {
         if (!IsValid(key))
@@ -76,6 +82,12 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
 
         _logger.LogInformation("{Entity} '{Key}' found in cache", EntityKind, key);
         Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "cache" } });
+        if (IsNegativeHit(entity))
+        {
+            dto = null;
+            return true;
+        }
+
         dto = MapToDto(entity);
         dto.Origin = "Cache";
         return true;

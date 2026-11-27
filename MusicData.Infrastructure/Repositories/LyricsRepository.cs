@@ -10,7 +10,9 @@ internal sealed class LyricsRepository(ILiteDatabase database)
     public const string CollectionName = "lyrics";
 
     // Bumped to 2 when P2-2 added AlbumName / Duration to LyricsEntity.
-    protected override int SchemaVersion => 2;
+    // Bumped to 3 when NotFound was added: older negative markers carried no
+    // flag and would otherwise be served as empty lyrics.
+    protected override int SchemaVersion => 3;
 
 
     public static void EnsureIndexes(ILiteCollection<LyricsEntity> collection)

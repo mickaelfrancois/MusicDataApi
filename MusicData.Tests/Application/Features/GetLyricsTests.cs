@@ -33,7 +33,7 @@ public class GetLyricsTests
 
         Assert.Null(result);
         _repo.Received(1).Add(Arg.Is<LyricsEntity>(e =>
-            e.Title == "Walk" && e.ArtistName == "Foo Fighters"));
+            e.Title == "Walk" && e.ArtistName == "Foo Fighters" && e.NotFound));
     }
 
     [Fact]
@@ -46,6 +46,19 @@ public class GetLyricsTests
 
         Assert.NotNull(result);
         Assert.Equal("Cache", result!.Origin);
+        await _aggregator.DidNotReceive().GetLyricsAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task NegativeCacheMarker_ReturnsNull_AndDoesNotCallAggregator()
+    {
+        _repo.Get("Walk", "Foo Fighters")
+             .Returns(new LyricsEntity { Title = "Walk", ArtistName = "Foo Fighters", NotFound = true });
+
+        LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "", 0);
+
+        Assert.Null(result);
         await _aggregator.DidNotReceive().GetLyricsAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
