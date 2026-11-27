@@ -22,10 +22,11 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
                 ? await GetLyricsWithDurationAsync(title, artistName, albumName, duration, cancellationToken)
                 : null;
 
-            if (root is null)
+            // A hit without any lyrics (instrumental track) is no hit at all.
+            if (!HasLyrics(root))
                 root = await SearchLyricsAsync(title, artistName, albumName, cancellationToken);
 
-            if (root is null)
+            if (root is null || !HasLyrics(root))
                 return null;
 
             lyrics = new LyricsDto()
@@ -77,8 +78,13 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
         LrcLibRootobject[]? lyrics = JsonSerializer.Deserialize<LrcLibRootobject[]>(json, jsonOptions);
 
-        return lyrics?.FirstOrDefault() ?? null;
+        return lyrics?.FirstOrDefault(HasLyrics);
     }
+
+
+    // Empty lyrics must not be cached and served as a 200: they are "not found".
+    private static bool HasLyrics(LrcLibRootobject? root) =>
+        root is not null && (!string.IsNullOrWhiteSpace(root.PlainLyrics) || !string.IsNullOrWhiteSpace(root.SyncedLyrics));
 }
 
 

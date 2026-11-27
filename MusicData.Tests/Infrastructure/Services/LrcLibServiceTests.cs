@@ -41,6 +41,27 @@ public class LrcLibServiceTests
         Assert.Equal(2, handler.Urls.Count);
     }
 
+    [Fact]
+    public async Task InstrumentalTrack_WithoutAnyLyrics_ReturnsNull_InsteadOfEmptyLyrics()
+    {
+        const string instrumental = """{"id":2,"trackName":"Intro","artistName":"Foo","albumName":"A","duration":60,"instrumental":true,"plainLyrics":null,"syncedLyrics":null}""";
+        RouteHandler handler = new(req => req.RequestUri!.AbsolutePath.EndsWith("/get") ? Json(instrumental) : Json($"[{instrumental}]"));
+
+        Assert.Null(await Create(handler).GetLyricsAsync("Intro", "Foo", "A", 60, CancellationToken.None));
+        Assert.Null(await Create(handler).GetLyricsAsync("Intro", "Foo", "", 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Search_SkipsResultsWithoutLyrics()
+    {
+        const string empty = """{"id":2,"trackName":"Walk","artistName":"Foo","albumName":"A","duration":257,"plainLyrics":" ","syncedLyrics":null}""";
+        RouteHandler handler = new(_ => Json($"[{empty},{Hit}]"));
+
+        LyricsDto? result = await Create(handler).GetLyricsAsync("Walk", "Foo", "", 0, CancellationToken.None);
+
+        Assert.Equal("[00:01] hi", result!.SyncLyrics);
+    }
+
 
     private static LrcLibService Create(HttpMessageHandler handler) => new(
         new HttpClient(handler) { BaseAddress = new Uri("https://lrclib.test/") },

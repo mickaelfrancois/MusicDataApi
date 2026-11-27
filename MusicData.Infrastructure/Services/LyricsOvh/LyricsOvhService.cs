@@ -26,7 +26,8 @@ public class LyricsOvhService(HttpClient httpClient, JsonSerializerOptions jsonO
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LyricsOvhRootobject? root = JsonSerializer.Deserialize<LyricsOvhRootobject>(json, jsonOptions);
 
-            if (root == null || root.Lyrics == null)
+            // Empty lyrics must not be cached and served as a 200: they are "not found".
+            if (root == null || string.IsNullOrWhiteSpace(root.Lyrics))
                 return null;
 
             lyrics = new LyricsDto()
