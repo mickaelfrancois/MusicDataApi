@@ -23,9 +23,15 @@ internal sealed class LyricsRepository(ILiteDatabase database)
 
     public static void EnsureIndexes(ILiteCollection<LyricsEntity> collection)
     {
-        collection.EnsureIndex(x => x.Title, unique: false);
-        collection.EnsureIndex(x => x.ArtistName, unique: false);
+        // Lookups compare LOWER(field), which a plain index on the field cannot
+        // serve (full scan): index the same expressions the queries use, and
+        // drop the plain indexes older databases still carry.
+        collection.DropIndex("Title");
+        collection.DropIndex("ArtistName");
+        collection.EnsureIndex("idx_title_lower", "LOWER($.Title)");
     }
+
+    internal const string ByTitleAndArtistQuery = "LOWER($.Title) = @0 AND LOWER($.ArtistName) = @1";
 
 
     protected override LyricsEntity? FindExisting(LyricsEntity incoming) =>
@@ -38,7 +44,7 @@ internal sealed class LyricsRepository(ILiteDatabase database)
 
     private LyricsEntity? FindByTitleAndArtist(string title, string artistName) =>
         Collection.FindOne(
-            "LOWER($.Title) = @0 AND LOWER($.ArtistName) = @1",
+            ByTitleAndArtistQuery,
             (title ?? string.Empty).ToLowerInvariant(),
             (artistName ?? string.Empty).ToLowerInvariant());
 }

@@ -17,7 +17,12 @@ internal sealed class ArtistRepository(ILiteDatabase database)
 
     public static void EnsureIndexes(ILiteCollection<ArtistEntity> collection)
     {
-        collection.EnsureIndex(x => x.Name, unique: false);
+        // Lookups compare LOWER(field), which a plain index on the field cannot
+        // serve (full scan): index the same expressions the queries use, and
+        // drop the plain indexes older databases still carry.
+        collection.DropIndex("Name");
+        collection.EnsureIndex("idx_name_lower", "LOWER($.Name)");
+        collection.EnsureIndex("idx_mbid_lower", "LOWER($.MusicBrainzID)");
         collection.EnsureIndex(x => x.MusicBrainzID, unique: true);
         collection.EnsureIndex(AliasIndexName, "$.Aliases[*]");
     }
