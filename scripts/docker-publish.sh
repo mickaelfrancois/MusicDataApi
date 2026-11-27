@@ -7,14 +7,14 @@
 # commitées, pour que l'image corresponde toujours à un commit identifiable.
 #
 # Usage :
-#   ./scripts/docker-publish.sh                    # build + push vladdfpc/rokapi:latest
+#   ./scripts/docker-publish.sh                    # build + push vladdfpc/musicdataapi:latest
 #   ./scripts/docker-publish.sh --version 1.4.0    # pousse aussi le tag 1.4.0
 #   ./scripts/docker-publish.sh --no-push          # build local uniquement
 #   ./scripts/docker-publish.sh --force            # ignore les vérifications branche / arbre propre
 set -euo pipefail
 
 # Surchargeable : DOCKER_IMAGE=monuser/monimage ./scripts/docker-publish.sh
-readonly IMAGE="${DOCKER_IMAGE:-vladdfpc/rokapi}"
+readonly IMAGE="${DOCKER_IMAGE:-vladdfpc/musicdataapi}"
 
 cyan()   { printf '\033[36m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }

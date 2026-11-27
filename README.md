@@ -67,7 +67,7 @@ user-secrets work the same way locally and in the dev container.
 From an up-to-date `master`, with an active `docker login` on Docker Hub:
 
 ```bash
-./scripts/docker-publish.sh                    # build + push vladdfpc/rokapi:latest
+./scripts/docker-publish.sh                    # build + push vladdfpc/musicdataapi:latest
 ./scripts/docker-publish.sh --version 1.4.0    # also push the 1.4.0 tag
 ./scripts/docker-publish.sh --no-push          # local build only
 DOCKER_IMAGE=me/other ./scripts/docker-publish.sh
