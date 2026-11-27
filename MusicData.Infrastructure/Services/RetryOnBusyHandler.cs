@@ -33,16 +33,17 @@ internal sealed class RetryOnBusyHandler(
         }
     }
 
-    // Honour Retry-After when the provider sends one, otherwise back off
-    // linearly; never wait longer than MaxDelay per attempt.
+    // Back off linearly, or longer if the provider's Retry-After asks for it;
+    // never wait more than MaxDelay per attempt. Retry-After is a floor only:
+    // MusicBrainz's search load-shedding always says "1" yet stays busy for a
+    // couple of seconds, so retrying exactly on it mostly fails again.
     private static TimeSpan GetDelay(HttpResponseMessage response, int attempt)
     {
-        TimeSpan wait = response.Headers.RetryAfter?.Delta
-            ?? (response.Headers.RetryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : BaseDelay * (attempt + 1));
+        TimeSpan backoff = BaseDelay * (attempt + 1);
+        TimeSpan requested = response.Headers.RetryAfter?.Delta
+            ?? (response.Headers.RetryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : TimeSpan.Zero);
 
-        if (wait < TimeSpan.Zero)
-            wait = TimeSpan.Zero;
-
+        TimeSpan wait = requested > backoff ? requested : backoff;
         return wait > MaxDelay ? MaxDelay : wait;
     }
 }

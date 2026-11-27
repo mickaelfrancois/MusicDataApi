@@ -43,6 +43,17 @@ public class RetryOnBusyHandlerTests
     }
 
     [Fact]
+    public async Task ShortRetryAfter_NeverShortensTheBackoff()
+    {
+        (HttpClient client, Script script, List<TimeSpan> waits) = Create(2, HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
+        script.RetryAfterSeconds.AddRange([1, 1]);
+
+        await client.GetAsync("https://mb.test/x");
+
+        Assert.Equal([RetryOnBusyHandler.BaseDelay, RetryOnBusyHandler.BaseDelay * 2], waits);
+    }
+
+    [Fact]
     public async Task RetryAfter_IsHonoured_ButCapped()
     {
         (HttpClient client, Script script, List<TimeSpan> waits) = Create(2, HttpStatusCode.ServiceUnavailable, HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
