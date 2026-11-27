@@ -83,9 +83,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
                 e => new
                 {
                     status = e.Value.Status.ToString(),
-                    description = e.Value.Description,
-                    duration = e.Value.Duration,
-                    exception = e.Value.Exception?.Message
+                    duration = e.Value.Duration
                 })
         });
         await context.Response.WriteAsync(result);

@@ -31,5 +31,7 @@ public class HealthTests : IClassFixture<MusicDataApiFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         string body = await response.Content.ReadAsStringAsync();
         Assert.Contains("\"status\":\"Healthy\"", body);
+        // The endpoint is anonymous: it must not leak exception messages.
+        Assert.DoesNotContain("exception", body, StringComparison.OrdinalIgnoreCase);
     }
 }
