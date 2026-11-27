@@ -36,19 +36,39 @@ internal abstract class LiteDbRepository<TEntity>
 
     public void Add(TEntity entity)
     {
-        TEntity? existing = FindExisting(entity);
-
         entity.UpdateDateTime = DateTime.UtcNow;
         entity.Version = SchemaVersion;
+
+        if (!TryUpsert(entity))
+        {
+            // Lost a race: a concurrent request (different lock key, e.g. by-name
+            // vs by-mbid) inserted the same unique key between our lookup and
+            // insert. The row exists now, so update it instead of failing.
+            if (!TryUpsert(entity))
+                throw new InvalidOperationException($"Could not upsert {typeof(TEntity).Name} after a duplicate-key retry.");
+        }
+    }
+
+
+    private bool TryUpsert(TEntity entity)
+    {
+        TEntity? existing = FindExisting(entity);
 
         if (existing is not null)
         {
             entity.Id = existing.Id;
             Collection.Update(entity);
+            return true;
         }
-        else
+
+        try
         {
             Collection.Insert(entity);
+            return true;
+        }
+        catch (LiteException ex) when (ex.ErrorCode == LiteException.INDEX_DUPLICATE_KEY)
+        {
+            return false;
         }
     }
 
