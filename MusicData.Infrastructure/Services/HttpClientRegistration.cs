@@ -8,6 +8,7 @@ namespace MusicData.Infrastructure.Services;
 internal static class HttpClientRegistration
 {
     private const string UserAgent = "RoK/1.0 (rok@francois.ovh)";
+    private static readonly TimeSpan PooledConnectionLifetime = TimeSpan.FromMinutes(5);
 
     public static IServiceCollection AddExternalHttpClient<TInterface, TImpl, TSettings>(
         this IServiceCollection services,
@@ -39,7 +40,12 @@ internal static class HttpClientRegistration
         })
         .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+
+            // The typed clients are captured for the process lifetime by the
+            // singleton aggregators, so IHttpClientFactory never rotates their
+            // handler: recycle connections here or DNS changes are never seen.
+            PooledConnectionLifetime = PooledConnectionLifetime
         });
 
         return services;
