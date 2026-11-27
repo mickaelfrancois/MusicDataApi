@@ -57,14 +57,18 @@ public class LyricsApiTests : IClassFixture<MusicDataApiFactory>
     [Fact]
     public async Task AlbumNameAndDuration_AreOptional()
     {
-        LyricsDto stub = new() { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "x", Origin = "LrcLib" };
+        // Own title + no-cache: this test used to pass only because the HTTP
+        // response cache replayed another test's 200 for the same path.
+        LyricsDto stub = new() { Title = "Optional", ArtistName = "Foo Fighters", PlainLyrics = "x", Origin = "LrcLib" };
         _factory.LyricsAggregator
-            .GetLyricsAsync("Walk", "Foo Fighters", "", 0, Arg.Any<CancellationToken>())
+            .GetLyricsAsync("Optional", "Foo Fighters", "", 0, Arg.Any<CancellationToken>())
             .Returns(stub);
 
         using HttpClient client = _factory.CreateAuthenticatedClient();
-        HttpResponseMessage response = await client.GetAsync("/v1/lyrics?title=Walk&artistName=Foo Fighters");
+        client.DefaultRequestHeaders.CacheControl = new() { NoCache = true };
+        HttpResponseMessage response = await client.GetAsync("/v1/lyrics?title=Optional&artistName=Foo Fighters");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Optional", (await response.Content.ReadFromJsonAsync<LyricsDto>())!.Title);
     }
 }
