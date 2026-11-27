@@ -34,6 +34,11 @@ services:
       # X-Forwarded-For pour échapper au limiteur.
       ForwardedHeaders__KnownProxies__0: 172.18.0.2
 
+      # Métriques OTLP vers Rok.Telemetry (base URL, le code ajoute /v1/metrics).
+      # ROK_KEY = la clé X-Rok-Key de Rok.Telemetry, à mettre dans un .env non committé.
+      Telemetry__OTEL_EXPORTER_OTLP_ENDPOINT: https://rok-telemetry.fpc-france.com
+      Telemetry__RokKey: ${ROK_KEY}
+
     volumes:
       - /srv/docker/data/musicdataapi/data:/data:rw
       - /srv/docker/data/musicdataapi/appsettings.json:/app/appsettings.Production.json:ro

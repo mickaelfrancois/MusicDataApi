@@ -87,7 +87,7 @@ public static class ConfigureServices
     public static IServiceCollection AddTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
         string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"]?.TrimEnd('/');
-        string? newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"];
+        string? rokKey = configuration["Telemetry:RokKey"];
         bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(otlpEndpoint);
 
         OpenTelemetryBuilder otel = services.AddOpenTelemetry()
@@ -98,17 +98,6 @@ public static class ConfigureServices
                    .AddSource("MusicDataApi")
                    .AddAspNetCoreInstrumentation()
                    .AddHttpClientInstrumentation();
-
-               if (hasOtlpEndpoint)
-               {
-                   tracingBuilder.AddOtlpExporter(options =>
-                   {
-                       options.Endpoint = new Uri(otlpEndpoint! + "/v1/traces");
-                       options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
-                       if (!string.IsNullOrEmpty(newRelicInsertKey))
-                           options.Headers = $"api-key={newRelicInsertKey}";
-                   });
-               }
            })
            .WithMetrics(metricsBuilder =>
            {
@@ -120,12 +109,14 @@ public static class ConfigureServices
 
                if (hasOtlpEndpoint)
                {
-                   metricsBuilder.AddOtlpExporter(options =>
+                   // Rok.Telemetry only ingests metrics (deltas per window); traces are not exported.
+                   metricsBuilder.AddOtlpExporter((options, readerOptions) =>
                    {
                        options.Endpoint = new Uri(otlpEndpoint! + "/v1/metrics");
                        options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
-                       if (!string.IsNullOrEmpty(newRelicInsertKey))
-                           options.Headers = $"api-key={newRelicInsertKey}";
+                       if (!string.IsNullOrEmpty(rokKey))
+                           options.Headers = $"X-Rok-Key={rokKey}";
+                       readerOptions.TemporalityPreference = MetricReaderTemporalityPreference.Delta;
                    });
                }
            });
