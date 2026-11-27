@@ -57,7 +57,9 @@ public static class ConfigureServices
             client => client.DefaultRequestHeaders.TryAddWithoutValidation("Content-type", "application/json"));
 
         services.AddExternalHttpClient<IMusicService, MusicBrainzService, MusicBrainzSettings>(
-            configuration, "musicbrainz", "Services:MusicBrainz");
+            configuration, "musicbrainz", "Services:MusicBrainz",
+            // MusicBrainz frequently answers 503 "busy", mostly on search.
+            retriesOnBusy: 2);
 
         services.AddExternalHttpClient<IMusicService, FanartService, FanartSettings>(
             configuration, "fanart", "Services:Fanart");

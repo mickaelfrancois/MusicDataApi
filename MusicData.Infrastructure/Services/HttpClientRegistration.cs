@@ -15,7 +15,8 @@ internal static class HttpClientRegistration
         IConfiguration configuration,
         string name,
         string configSection,
-        Action<HttpClient>? configureClient = null)
+        Action<HttpClient>? configureClient = null,
+        int retriesOnBusy = 0)
         where TInterface : class
         where TImpl : class, TInterface
         where TSettings : class, IHttpServiceSettings, new()
@@ -29,7 +30,7 @@ internal static class HttpClientRegistration
         if (!section.GetValue<bool>("Enabled"))
             return services;
 
-        services.AddHttpClient<TInterface, TImpl>(name, (sp, client) =>
+        IHttpClientBuilder builder = services.AddHttpClient<TInterface, TImpl>(name, (sp, client) =>
         {
             TSettings settings = sp.GetRequiredService<IOptions<TSettings>>().Value;
             client.BaseAddress = new Uri(settings.BaseUrl);
@@ -47,6 +48,9 @@ internal static class HttpClientRegistration
             // handler: recycle connections here or DNS changes are never seen.
             PooledConnectionLifetime = PooledConnectionLifetime
         });
+
+        if (retriesOnBusy > 0)
+            builder.AddHttpMessageHandler(() => new RetryOnBusyHandler(retriesOnBusy));
 
         return services;
     }
