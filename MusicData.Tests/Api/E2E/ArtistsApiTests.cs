@@ -31,11 +31,11 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     public async Task ByMbid_AllProvidersFailed_Returns503WithRetryAfter_NotNotFound()
     {
         _factory.MusicAggregator
-            .GetArtistByMusicBrainzIdAsync("mbid-down", Arg.Any<CancellationToken>())
+            .GetArtistByMusicBrainzIdAsync("11111111-1111-4111-8111-111111111111", Arg.Any<CancellationToken>())
             .Returns<ArtistDto?>(_ => throw new MusicData.Application.Exceptions.ExternalServicesUnavailableException("artist"));
 
         using HttpClient client = _factory.CreateAuthenticatedClient();
-        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/mbid-down");
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/11111111-1111-4111-8111-111111111111");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.True(response.Headers.Contains("Retry-After"));
@@ -83,15 +83,29 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("not-a-guid")]
+    [InlineData("ghost-mbid-0000000000000000000000000")]
+    [InlineData("a8d77515f7b74d7196468446a3b2a341")]
+    public async Task ByMbid_NotAGuid_ReturnsBadRequest_WithoutCallingAggregator(string mbid)
+    {
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/" + mbid);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await _factory.MusicAggregator.DidNotReceive().GetArtistByMusicBrainzIdAsync(mbid, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task ByMbid_AggregatorReturnsNull_Returns404()
     {
         _factory.MusicAggregator
-            .GetArtistByMusicBrainzIdAsync("ghost-mbid-0000000000000000000000000", Arg.Any<CancellationToken>())
+            .GetArtistByMusicBrainzIdAsync("22222222-2222-4222-8222-222222222222", Arg.Any<CancellationToken>())
             .Returns((ArtistDto?)null);
 
         using HttpClient client = _factory.CreateAuthenticatedClient();
-        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/ghost-mbid-0000000000000000000000000");
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/22222222-2222-4222-8222-222222222222");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

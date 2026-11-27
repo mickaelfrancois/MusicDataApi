@@ -48,7 +48,7 @@ public static class ArtistEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(musicBrainzId, Validation.MaxMbidLength, "Artist musicBrainzId") is { } error)
+        if (Validation.RequireMbid(musicBrainzId, "Artist musicBrainzId") is { } error)
             return error;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetArtistByMusicBrainzId", ActivityKind.Server);

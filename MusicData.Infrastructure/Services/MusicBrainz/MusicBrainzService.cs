@@ -111,6 +111,13 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
     }
 
 
+    // The Hqub client reports non-success statuses as WebServiceException (never
+    // HttpRequestException). 404 = unknown MBID, 400 = malformed MBID: both are a
+    // genuine "not found", everything else is a provider failure.
+    private static bool IsNotFound(WebServiceException ex) =>
+        ex.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest;
+
+
     public async Task<ArtistDto?> GetArtistAsync(string musicBrainzId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(musicBrainzId))
@@ -136,7 +143,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(artist);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (WebServiceException ex) when (IsNotFound(ex))
         {
             logger.LogDebug(ex, "Not found upstream");
             return null;
@@ -178,7 +185,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(release);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (WebServiceException ex) when (IsNotFound(ex))
         {
             logger.LogDebug(ex, "Not found upstream");
             return null;

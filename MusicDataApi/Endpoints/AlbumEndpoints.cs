@@ -59,9 +59,9 @@ public static class AlbumEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(artistMusicBrainzId, Validation.MaxMbidLength, "Artist musicBrainzId") is { } artistError)
+        if (Validation.RequireMbid(artistMusicBrainzId, "Artist musicBrainzId") is { } artistError)
             return artistError;
-        if (Validation.RequireMaxLength(albumMusicBrainzId, Validation.MaxMbidLength, "Album musicBrainzId") is { } albumError)
+        if (Validation.RequireMbid(albumMusicBrainzId, "Album musicBrainzId") is { } albumError)
             return albumError;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetAlbumByMusicBrainzId", ActivityKind.Server);

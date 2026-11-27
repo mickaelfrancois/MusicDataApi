@@ -24,6 +24,26 @@ public class ValidationTests
         Assert.Null(Validation.RequireMaxLength(new string('a', 10), 10, "X"));
     }
 
+    [Theory]
+    [InlineData("a8d77515-f7b7-4d71-9646-8446a3b2a341")]
+    [InlineData("A8D77515-F7B7-4D71-9646-8446A3B2A341")]
+    public void RequireMbid_Guid_ReturnsNull(string value)
+    {
+        Assert.Null(Validation.RequireMbid(value, "X"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("mbid-foo")]
+    [InlineData("a8d77515f7b74d7196468446a3b2a341")]
+    [InlineData("{a8d77515-f7b7-4d71-9646-8446a3b2a341}")]
+    [InlineData("a8d77515-f7b7-4d71-9646-8446a3b2a34z")]
+    public void RequireMbid_NotAGuid_ReturnsBadRequest(string? value)
+    {
+        Assert.NotNull(Validation.RequireMbid(value, "X"));
+    }
+
     [Fact]
     public void AllowMaxLength_NullOrEmpty_ReturnsNull()
     {
