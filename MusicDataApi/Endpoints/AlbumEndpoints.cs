@@ -47,7 +47,7 @@ public static class AlbumEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 
@@ -72,7 +72,7 @@ public static class AlbumEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 }

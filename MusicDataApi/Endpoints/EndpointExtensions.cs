@@ -2,7 +2,8 @@ namespace MusicData.Api.Endpoints;
 
 internal static class EndpointExtensions
 {
-    private const string PublicCacheControl = "public, max-age=30";
+    // Responses are API-key authenticated: a shared cache must not store them.
+    private const string PrivateCacheControl = "private, max-age=30";
     private const string CacheVary = "Accept-Encoding";
 
     public static RouteHandlerBuilder MapGetCached<TResponse>(
@@ -17,9 +18,9 @@ internal static class EndpointExtensions
             .DisableAntiforgery();
     }
 
-    public static void SetPublicCacheHeaders(this HttpContext context)
+    public static void SetPrivateCacheHeaders(this HttpContext context)
     {
-        context.Response.Headers.CacheControl = PublicCacheControl;
+        context.Response.Headers.CacheControl = PrivateCacheControl;
         context.Response.Headers.Vary = CacheVary;
     }
 }

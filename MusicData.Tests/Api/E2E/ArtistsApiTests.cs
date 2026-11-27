@@ -79,7 +79,7 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
-    public async Task ByName_HappyPath_SetsPublicCacheHeaders()
+    public async Task ByName_HappyPath_SetsPrivateCacheHeaders()
     {
         _factory.MusicAggregator
             .GetArtistByNameAsync("Cached Headers Test", Arg.Any<CancellationToken>())
@@ -88,7 +88,10 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
         using HttpClient client = _factory.CreateAuthenticatedClient();
         HttpResponseMessage response = await client.GetAsync("/v1/artists/byName/Cached Headers Test");
 
-        Assert.Equal("public, max-age=30", response.Headers.CacheControl?.ToString());
+        // API-key authenticated: cacheable by the client only, never by a shared cache.
+        Assert.True(response.Headers.CacheControl?.Private);
+        Assert.False(response.Headers.CacheControl?.Public);
+        Assert.Equal(TimeSpan.FromSeconds(30), response.Headers.CacheControl?.MaxAge);
         Assert.Contains("Accept-Encoding", response.Headers.Vary);
     }
 

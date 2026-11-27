@@ -37,7 +37,7 @@ public static class ArtistEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 
@@ -58,7 +58,7 @@ public static class ArtistEndpoints
         if (result is null)
             return Results.NotFound();
 
-        httpContext.SetPublicCacheHeaders();
+        httpContext.SetPrivateCacheHeaders();
         return Results.Ok(result);
     }
 }

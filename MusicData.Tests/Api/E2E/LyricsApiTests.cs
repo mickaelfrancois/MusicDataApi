@@ -55,6 +55,26 @@ public class LyricsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
+    public async Task DifferentQueries_OnTheSamePath_GetTheirOwnLyrics()
+    {
+        // With "public" the response-caching middleware stored the first 200 under
+        // the path alone and replayed it for every other title for 30 seconds.
+        foreach (string title in new[] { "First", "Second" })
+        {
+            _factory.LyricsAggregator
+                .GetLyricsAsync(title, "Same Artist", "", 0, Arg.Any<CancellationToken>())
+                .Returns(new LyricsDto { Title = title, ArtistName = "Same Artist", PlainLyrics = "lyrics of " + title });
+        }
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        LyricsDto? first = await client.GetFromJsonAsync<LyricsDto>("/v1/lyrics?title=First&artistName=Same Artist");
+        LyricsDto? second = await client.GetFromJsonAsync<LyricsDto>("/v1/lyrics?title=Second&artistName=Same Artist");
+
+        Assert.Equal("lyrics of First", first!.PlainLyrics);
+        Assert.Equal("lyrics of Second", second!.PlainLyrics);
+    }
+
+    [Fact]
     public async Task AlbumNameAndDuration_AreOptional()
     {
         // Own title + no-cache: this test used to pass only because the HTTP

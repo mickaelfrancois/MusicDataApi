@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Hqub.MusicBrainz;
 using Microsoft.Extensions.Logging.Abstractions;
+using MusicData.Application.DTOs;
 using MusicData.Infrastructure.Services.MusicBrainz;
 
 namespace MusicData.Tests.Infrastructure.Services;
@@ -106,6 +107,31 @@ public class MusicBrainzServiceTests
             $$"""{"count":1,"offset":0,"artists":[{"id":"{{Mbid}}","score":100,"name":"Foo Fighters"}]}""")));
 
         Assert.Equal(Mbid, await sut.FindArtistAsync("Foo Fighters", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CallerCancellation_AbortsTheInFlightMusicBrainzRequest()
+    {
+        using CancellationTokenSource cts = new();
+        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        MusicBrainzService sut = Create(new HangingHandler(started));
+
+        Task<ArtistDto?> pending = sut.GetArtistAsync(Mbid, cts.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
+    }
+
+
+    private sealed class HangingHandler(TaskCompletionSource started) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            started.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
     }
 
 

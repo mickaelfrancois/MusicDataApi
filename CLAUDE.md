@@ -24,7 +24,7 @@ Docker (the `docker-compose.dcproj` is the VS launch profile, real compose lives
 docker compose up --build           # builds MusicDataApi/Dockerfile
 ```
 
-The `MusicDataApi.http` file at the repo root contains live request samples for every endpoint — use it to smoke-test instead of writing curl by hand. `docs/audit-2026-05-01.html` is the architecture audit that drove the P0–P2 refactors (commit messages reference its IDs, e.g. "P2-16").
+The `MusicDataApi/MusicDataApi.http` file contains live request samples for every endpoint — use it to smoke-test instead of writing curl by hand. `docs/audit-2026-05-01.html` is the architecture audit that drove the P0–P2 refactors (commit messages reference its IDs, e.g. "P2-16").
 
 ## Target framework
 
@@ -93,7 +93,7 @@ Two custom counters: `musicdata.requests` (entity × result, emitted by `CachedR
 
 ### Endpoints
 
-All endpoints live under `/v1/...` in `MusicDataApi/Endpoints/`, routed via static `Map*ApiV1` extension methods on `IEndpointRouteBuilder`, and apply both `ApiKeyPolicy` authorization and `IpPolicy` rate limiting at the group level. Each route validates inputs (`Validation.cs`; length caps of 255 / 36 chars) before calling the handler and sets `Cache-Control: public, max-age=30` + `Vary: Accept-Encoding` on success. Health checks are mapped separately at `/health/ready` (filtered by tag `ready`) and `/health/live`.
+All endpoints live under `/v1/...` in `MusicDataApi/Endpoints/`, routed via static `Map*ApiV1` extension methods on `IEndpointRouteBuilder`, and apply both `ApiKeyPolicy` authorization and `IpPolicy` rate limiting at the group level. Each route validates inputs (`Validation.cs`; names capped at 255 chars, MBIDs must be GUIDs) before calling the handler and sets `Cache-Control: private, max-age=30` + `Vary: Accept-Encoding` on success (`private` because every response is API-key authenticated: shared caches must not store it). Health checks are mapped separately at `/health/ready` (filtered by tag `ready`) and `/health/live`.
 
 ## Conventions worth respecting
 

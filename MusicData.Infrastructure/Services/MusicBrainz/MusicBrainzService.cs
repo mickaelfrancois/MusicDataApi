@@ -28,7 +28,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
             if (!entered)
                 throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            QueryResult<Artist> artists = await _client.Artists.SearchAsync(name.Quote(), 10);
+            QueryResult<Artist> artists = await _client.Artists.Search(name.Quote(), 10).GetAsync(cancellationToken);
 
             int count = artists.Items.Count(a => a.Score == 100);
 
@@ -74,7 +74,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
                                         { "status", "official" }
                                     };
 
-            QueryResult<Release> releases = await _client.Releases.SearchAsync(query);
+            QueryResult<Release> releases = await _client.Releases.Search(query).GetAsync(cancellationToken);
 
             int count = releases.Items.Where(r => r.Date != null).Count(a => a.Score == 100);
 
@@ -123,7 +123,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
             if (!entered)
                 throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            Artist artist = await _client.Artists.GetAsync(musicBrainzId, "artist-rels", "url-rels");
+            Artist artist = await _client.Artists.Get(musicBrainzId, "artist-rels", "url-rels").GetAsync(cancellationToken);
 
             if (artist == null)
             {
@@ -166,7 +166,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
             if (!entered)
                 throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            Release release = await _client.Releases.GetAsync(releaseMusicBrainzId, "artist-credits", "artist-rels", "url-rels", "release-groups");
+            Release release = await _client.Releases.Get(releaseMusicBrainzId, "artist-credits", "artist-rels", "url-rels", "release-groups").GetAsync(cancellationToken);
             if (release == null)
             {
                 logger.LogDebug("Release with MBID '{ReleaseMbId}' not found", releaseMusicBrainzId);
