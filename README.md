@@ -80,3 +80,5 @@ At runtime the image stores the LiteDB file in `/data` (owned by the non-root ap
 user): mount a named volume there, and set `ApiKeySettings__Key`. Behind a reverse
 proxy such as Traefik, set `ForwardedHeaders__KnownNetworks__0` to the proxy network
 (e.g. `172.18.0.0/16`) so the per-IP rate limiter sees real client addresses.
+
+A production compose file for Traefik is in `docs/docker-compose.prod.sample.yml`.

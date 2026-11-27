@@ -1,0 +1,53 @@
+###############################################################################
+# MusicDataApi – docker-compose de production (Traefik)
+#
+# Avant de déployer :
+#   - remplacer le sous-réseau de ForwardedHeaders__KnownNetworks__0 par celui du réseau
+#     Traefik :  docker network inspect traefik-network --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+#   - /srv/docker/data/musicdataapi/data doit être accessible en écriture par l'UID 1654
+#     (utilisateur de l'image) :  chown -R 1654:1654 /srv/docker/data/musicdataapi/data
+#   - appsettings.json (monté en appsettings.Production.json) porte ApiKeySettings:Key et
+#     les clés LastFM / Fanart : ne jamais le committer.
+###############################################################################
+
+services:
+
+  musicdata-api:
+    image: vladdfpc/musicdataapi:latest        # ou un tag de version : vladdfpc/musicdataapi:1.4.0
+    container_name: musicdata-api
+    restart: always
+
+    # Pas de "ports:" : Traefik joint l'API par le réseau Docker. Publier le port
+    # permettrait de contourner Traefik, et du trafic arrivant par la passerelle du
+    # réseau serait considéré comme un proxy de confiance (X-Forwarded-For falsifiable).
+    # Pour un accès de debug local uniquement : - "127.0.0.1:8090:8080"
+
+    environment:
+      # Traefik est le seul proxy de confiance : le limiteur de débit par IP lit alors
+      # l'IP réelle du client dans X-Forwarded-For (sinon tous les clients partagent
+      # l'IP de Traefik, donc un seul quota).
+      ForwardedHeaders__KnownNetworks__0: 172.18.0.0/16
+
+    volumes:
+      - /srv/docker/data/musicdataapi/data:/data:rw
+      - /srv/docker/data/musicdataapi/appsettings.json:/app/appsettings.Production.json:ro
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.musicdataapi.rule=Host(`musicdata-api.fpc-france.com`)"
+      - "traefik.http.routers.musicdataapi.entrypoints=websecure"
+      - "traefik.http.routers.musicdataapi.tls.certresolver=mydnschallenge"
+      # L'image expose 8080 et 8081 : indiquer le port à Traefik plutôt que le laisser choisir.
+      - "traefik.http.services.musicdataapi.loadbalancer.server.port=8080"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  default:
+    name: traefik-network
+    external: true
