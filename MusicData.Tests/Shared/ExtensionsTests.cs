@@ -11,9 +11,16 @@ public class ExtensionsTests
     }
 
     [Fact]
-    public void Quote_NoSpace_ReturnsUnchanged()
+    public void Quote_SingleWord_IsStillQuoted_SoLuceneOperatorsStayLiteral()
     {
-        Assert.Equal("foo", "foo".Quote());
+        Assert.Equal("\"foo\"", "foo".Quote());
+        Assert.Equal("\"AC/DC\"", "AC/DC".Quote());
+    }
+
+    [Fact]
+    public void Quote_EscapesQuotesAndBackslashes()
+    {
+        Assert.Equal("\"say \\\"hi\\\" \\\\ ok\"", "say \"hi\" \\ ok".Quote());
     }
 
     [Fact]
