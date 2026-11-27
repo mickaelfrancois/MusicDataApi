@@ -51,6 +51,40 @@ public class MusicBrainzServiceTests
         Assert.Contains($"artist/{Mbid}", Assert.Single(handler.Urls));
     }
 
+    [Fact]
+    public async Task FindArtist_ServerError_Throws_InsteadOfLookingLikeNoMatch()
+    {
+        MusicBrainzService sut = Create(new StubHandler(_ => Json(HttpStatusCode.ServiceUnavailable, """{"error":"Rate limited"}""")));
+
+        await Assert.ThrowsAsync<WebServiceException>(() => sut.FindArtistAsync("Foo Fighters", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FindAlbum_ServerError_Throws_InsteadOfLookingLikeNoMatch()
+    {
+        MusicBrainzService sut = Create(new StubHandler(_ => Json(HttpStatusCode.BadGateway, "{}")));
+
+        await Assert.ThrowsAsync<WebServiceException>(() => sut.FindAlbumAsync("Wasting Light", Mbid, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FindArtist_NoMatch_ReturnsNull()
+    {
+        MusicBrainzService sut = Create(new StubHandler(_ => Json(HttpStatusCode.OK, """{"count":0,"offset":0,"artists":[]}""")));
+
+        Assert.Null(await sut.FindArtistAsync("zzzz", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FindArtist_Match_ReturnsMbid()
+    {
+        MusicBrainzService sut = Create(new StubHandler(_ => Json(
+            HttpStatusCode.OK,
+            $$"""{"count":1,"offset":0,"artists":[{"id":"{{Mbid}}","score":100,"name":"Foo Fighters"}]}""")));
+
+        Assert.Equal(Mbid, await sut.FindArtistAsync("Foo Fighters", CancellationToken.None));
+    }
+
 
     internal static MusicBrainzService Create(HttpMessageHandler handler) => new(
         new HttpClient(handler) { BaseAddress = new Uri("https://musicbrainz.test/ws/2/") },

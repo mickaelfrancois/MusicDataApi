@@ -76,6 +76,55 @@ public class MusicAggregatorTests
         Assert.Null(await Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ArtistByName_LookupFailed_IsUnavailable_NotNotFound()
+    {
+        FakeMusicBrainz musicBrainz = new() { FindArtist = _ => throw new TimeoutException("busy") };
+
+        await Assert.ThrowsAsync<ExternalServicesUnavailableException>(
+            () => Create(musicBrainz).GetArtistByNameAsync("Foo Fighters", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AlbumByName_LookupFailed_IsUnavailable_NotNotFound()
+    {
+        FakeMusicBrainz musicBrainz = new() { FindAlbum = (_, _) => throw new HttpRequestException("503") };
+
+        await Assert.ThrowsAsync<ExternalServicesUnavailableException>(
+            () => Create(musicBrainz).GetAlbumByNameAsync("Wasting Light", ArtistMbid, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ArtistByName_NoMatch_IsNotFound()
+    {
+        FakeMusicBrainz musicBrainz = new() { FindArtist = _ => null };
+
+        Assert.Null(await Create(musicBrainz).GetArtistByNameAsync("zzzz", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ArtistByName_Lookup_GoesThroughTheMusicBrainzTokenBucket()
+    {
+        // One token per 400 ms: the lookup takes the first one, so the artist
+        // fetch that follows has to wait for the refill.
+        RateLimitOptions limits = new()
+        {
+            ServiceLimits = { ["fakemusicbrainz"] = new ServiceRateLimit { MaxRequests = 1, PerMilliSeconds = 400 } }
+        };
+        FakeMusicBrainz musicBrainz = new()
+        {
+            FindArtist = _ => ArtistMbid,
+            Artist = id => new ArtistDto { Name = "Foo Fighters", MusicBrainzID = id }
+        };
+        MusicAggregator sut = new([musicBrainz], musicBrainz, Options.Create(limits));
+
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        ArtistDto? artist = await sut.GetArtistByNameAsync("Foo Fighters", CancellationToken.None);
+
+        Assert.NotNull(artist);
+        Assert.True(System.Diagnostics.Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(300));
+    }
+
 
     private static MusicAggregator Create(params IMusicService[] services) => new(
         services,

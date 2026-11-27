@@ -26,7 +26,11 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        string? musicBrainzId = await _musicBrainz.FindArtistAsync(name, cancellationToken);
+        string? musicBrainzId = await RunRequiredAsync(
+            _musicBrainz,
+            "artist",
+            ct => _musicBrainz.FindArtistAsync(name, ct),
+            cancellationToken);
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
@@ -58,7 +62,11 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrEmpty(albumName))
             return null;
 
-        MusicBrainzReleaseInfo? releaseInfo = await _musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, cancellationToken);
+        MusicBrainzReleaseInfo? releaseInfo = await RunRequiredAsync(
+            _musicBrainz,
+            "album",
+            ct => _musicBrainz.FindAlbumAsync(albumName, artistMusicBrainzId, ct),
+            cancellationToken);
         if (releaseInfo is null || string.IsNullOrEmpty(releaseInfo.ReleaseId))
             return null;
 

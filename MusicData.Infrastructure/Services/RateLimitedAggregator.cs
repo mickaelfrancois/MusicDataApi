@@ -71,6 +71,52 @@ internal abstract class RateLimitedAggregator<TService>
     }
 
 
+    /// <summary>
+    /// Runs one call the request cannot do without (e.g. the MusicBrainz
+    /// name → MBID lookup) outside a fan-out: it waits on the provider's token
+    /// bucket like any other call, returns null for a genuine "not found" and
+    /// turns a failure into <see cref="ExternalServicesUnavailableException"/>.
+    /// </summary>
+    protected async Task<TResult?> RunRequiredAsync<TResult>(
+        object service,
+        string entityKind,
+        Func<CancellationToken, Task<TResult?>> call,
+        CancellationToken cancellationToken)
+        where TResult : class
+    {
+        string serviceName = service.GetType().Name;
+
+        try
+        {
+            if (_limiters.TryGetValue(service.GetType(), out TokenBucketRateLimiter? limiter))
+                await limiter.WaitForAvailabilityAsync(cancellationToken);
+
+            TResult? result = await call(cancellationToken);
+            Telemetry.ExternalCalls.Add(1, new TagList
+            {
+                { "service", serviceName },
+                { "entity", entityKind },
+                { "result", result is null ? "not_found" : "ok" }
+            });
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Telemetry.ExternalCalls.Add(1, new TagList
+            {
+                { "service", serviceName },
+                { "entity", entityKind },
+                { "result", "error" }
+            });
+            throw new ExternalServicesUnavailableException(entityKind, ex);
+        }
+    }
+
+
     private async Task<ServiceOutcome<TResult>> SafeRunAsync<TResult>(
         TService service,
         string entityKind,
