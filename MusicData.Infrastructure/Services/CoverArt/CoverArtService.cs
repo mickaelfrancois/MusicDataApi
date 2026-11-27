@@ -28,11 +28,8 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
             string requestUrl = $"{_apiURL}/{Uri.EscapeDataString(releaseMusicBrainzId)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("CovertArt response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             CoverArtRootObject? root = JsonSerializer.Deserialize<CoverArtRootObject>(json, jsonOptions);

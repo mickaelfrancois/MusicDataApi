@@ -22,11 +22,8 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             string requestUrl = $"{_apiURL}&method=artist.getinfo&mbid={Uri.EscapeDataString(musicBrainzId)}&lang=en";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("LastFm response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LastFmRootArtist? root = JsonSerializer.Deserialize<LastFmRootArtist>(json, jsonOptions);
@@ -57,11 +54,8 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             string requestUrl = $"{_apiURL}&method=album.getinfo&mbid={Uri.EscapeDataString(releaseMusicBrainzId)}&lang=en";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("LastFm response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
             LastFmRootAlbum? root = JsonSerializer.Deserialize<LastFmRootAlbum>(json, jsonOptions);

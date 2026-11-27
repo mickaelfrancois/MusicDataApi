@@ -17,14 +17,11 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
         try
         {
-            string requestUrl = $"{musicBrainzId}?api_key={settings.Value.ApiKey}";
+            string requestUrl = $"{Uri.EscapeDataString(musicBrainzId)}?api_key={Uri.EscapeDataString(settings.Value.ApiKey)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -53,14 +50,11 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
 
         try
         {
-            string requestUrl = $"{releaseGroupMusicBrainzId}?api_key={settings.Value.ApiKey}";
+            string requestUrl = $"{Uri.EscapeDataString(releaseGroupMusicBrainzId)}?api_key={Uri.EscapeDataString(settings.Value.ApiKey)}";
 
             using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogDebug("FanartTv response with {StatusCode}", response.StatusCode);
+            if (response.IsNotFoundOrThrow())
                 return null;
-            }
 
             string json = await response.Content.ReadAsStringAsync(cancellationToken);
 
