@@ -60,3 +60,27 @@ docker compose up --build
 
 Mounts `%APPDATA%/Microsoft/UserSecrets` read-only into the container so
 user-secrets work the same way locally and in the dev container.
+
+
+### Publishing the image
+
+From an up-to-date `master`, with an active `docker login` on Docker Hub:
+
+```bash
+./scripts/docker-publish.sh                    # build + push vladdfpc/musicdataapi:latest
+./scripts/docker-publish.sh --version 1.4.0    # also push the 1.4.0 tag
+./scripts/docker-publish.sh --no-push          # local build only
+DOCKER_IMAGE=me/other ./scripts/docker-publish.sh
+```
+
+The script refuses to publish from another branch or with uncommitted changes
+(`--force` skips both checks), and labels the image with the commit it was built from.
+
+At runtime the image stores the LiteDB file in `/data` (owned by the non-root app
+user): mount a named volume there, and set `ApiKeySettings__Key`. Behind a reverse
+proxy such as Traefik, set `ForwardedHeaders__KnownProxies__0` to the proxy's own IP
+(give it a fixed one) so the per-IP rate limiter sees real client addresses. Prefer
+this to `KnownNetworks`: any container on a trusted network could otherwise forge
+`X-Forwarded-For`.
+
+A production compose file for Traefik is in `docs/docker-compose.prod.sample.yml`.
