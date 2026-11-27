@@ -54,6 +54,8 @@ Subclasses only supply the hooks (`GetCachedEntity`, `FetchAsync`, `MapToDto`, `
 2. On miss, take a per-key lock (`IKeyedLocker`, key like `artist:byname:<lowercased>`), **re-check the cache** (double-checked locking to stop concurrent duplicate external fan-outs), then call the aggregator via `FetchAsync`.
 3. Hit: `Persist` (repository `Add`), `result=external`. Miss: `OnNotFound`, `result=not_found`, return null.
 
+Cached rows expire (`LiteDbRepository.TimeToLive`: 30 days; lyrics negative markers 1 day) and older `SchemaVersion` rows count as misses. A DTO with `IsPartial = true` (a provider failed while merging) is returned but **never persisted**. A negative-cache entity must override `IsNegativeHit` so it is answered as null, not mapped to a DTO.
+
 Persistence and cache lookup stay on the **handler**, not inside the aggregator. Don't push caching into the aggregator or the repository. Don't re-implement the flow in a handler — override the hooks.
 
 ### Aggregator pattern
@@ -62,12 +64,14 @@ Persistence and cache lookup stay on the **handler**, not inside the aggregator.
 
 External services are registered through the internal helper `AddExternalHttpClient<TInterface, TImpl, TSettings>(configuration, name, "Services:{Name}")` (`Services/HttpClientRegistration.cs`), which binds `IOptions<TSettings>`, sets `BaseAddress`, `Timeout`, gzip/deflate decompression and the `User-Agent: RoK/1.0 (rok@francois.ovh)` header. **If `Services:{Name}:Enabled` is false the service is not registered at all** — the aggregator's `IEnumerable<>` simply doesn't contain it, so implementations carry no per-call "enabled" check.
 
+**Provider contract:** an `IMusicService`/`ILyricsService` returns null **only** for a genuine not-found (HTTP 404, via `HttpResponseExtensions.IsNotFoundOrThrow`) and lets every other failure (non-404 status, timeout, exception) propagate. `RateLimitedAggregator` counts those failures: all-failed-and-empty raises `ExternalServicesUnavailableException` (mapped to 503 + `Retry-After` by `ExternalServicesExceptionHandler`), some-failed marks the merged DTO `IsPartial`. Never swallow errors into null inside a provider — it would be cached as "not found".
+
 `MusicBrainzService` is special: it is exposed as the singleton `IMusicBrainzLookup` (resolved via `OfType<MusicBrainzService>().Single()` from the `IMusicService` list) and used by `MusicAggregator` to resolve names → MBIDs before fanning out. Don't register a second MusicBrainz client; and note that disabling MusicBrainz makes that factory throw (the E2E factory stubs it for this reason).
 
 ### Rate limiting (two layers — don't confuse them)
 
 - **Per-external-service token bucket** (`Infrastructure/RateLimiting/TokenBucketRateLimiter.cs`) — created in `RateLimitedAggregator` per service type. Limits come from the `ServiceRateLimits:ServiceLimits` config section (bound to `RateLimitOptions`), keyed by **lowercase type name** (e.g. `"musicbrainzservice"`). When adding a new external service, **also add a key to `appsettings.json`** or it silently falls back to the trivial `(1 per 1ms)` bucket.
-- **Per-IP request limiter** (`AspNetCore.RateLimiting`, fixed window) — applied to every endpoint via `.RequireRateLimiting("IpPolicy")`. Rate is `RateLimiting:RequestsPerMinute` from config (default 60).
+- **Per-IP request limiter** (`AspNetCore.RateLimiting`, fixed window) — applied to every endpoint via `.RequireRateLimiting("IpPolicy")`. Rate is `RateLimiting:RequestsPerMinute` from config (default 60). `UseIpRateLimiting()` **must stay before `UseAuthentication()`** so failed API-key attempts are throttled. The partition key is `Connection.RemoteIpAddress`; behind a reverse proxy list it in `ForwardedHeaders:KnownProxies` / `KnownNetworks` (`ForwardedHeadersSetup`) or every client shares the proxy's bucket.
 
 ### Authentication
 

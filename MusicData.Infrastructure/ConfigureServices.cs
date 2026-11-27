@@ -84,7 +84,7 @@ public static class ConfigureServices
 
     public static IServiceCollection AddTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
-        string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"];
+        string? otlpEndpoint = configuration["Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT"]?.TrimEnd('/');
         string? newRelicInsertKey = configuration["Telemetry:NEW_RELIC_INSERT_KEY"];
         bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(otlpEndpoint);
 

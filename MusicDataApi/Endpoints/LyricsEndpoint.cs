@@ -8,8 +8,6 @@ namespace MusicData.Api.Endpoints;
 
 public static class LyricsEndpoint
 {
-    private const int MaxNameLength = 255;
-
     public static IEndpointRouteBuilder MapLyricsApiV1(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder api = app.MapGroup("v1/lyrics")
@@ -31,11 +29,11 @@ public static class LyricsEndpoint
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(title, MaxNameLength, "Title") is { } titleError)
+        if (Validation.RequireMaxLength(title, Validation.MaxNameLength, "Title") is { } titleError)
             return titleError;
-        if (Validation.RequireMaxLength(artistName, MaxNameLength, "Artist name") is { } artistError)
+        if (Validation.RequireMaxLength(artistName, Validation.MaxNameLength, "Artist name") is { } artistError)
             return artistError;
-        if (Validation.AllowMaxLength(albumName, MaxNameLength, "Album name") is { } albumError)
+        if (Validation.AllowMaxLength(albumName, Validation.MaxNameLength, "Album name") is { } albumError)
             return albumError;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetLyrics", ActivityKind.Server);

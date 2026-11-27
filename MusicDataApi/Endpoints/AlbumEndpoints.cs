@@ -9,9 +9,6 @@ namespace MusicData.Api.Endpoints;
 
 public static class AlbumEndpoints
 {
-    private const int MaxNameLength = 255;
-    private const int MaxMbidLength = 36;
-
     public static IEndpointRouteBuilder MapAlbumsApiV1(this IEndpointRouteBuilder app)
     {
         RouteGroupBuilder api = app.MapGroup("v1/albums")
@@ -33,9 +30,9 @@ public static class AlbumEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(albumName, MaxNameLength, "Album name") is { } albumError)
+        if (Validation.RequireMaxLength(albumName, Validation.MaxNameLength, "Album name") is { } albumError)
             return albumError;
-        if (Validation.RequireMaxLength(artistName, MaxNameLength, "Artist name") is { } artistError)
+        if (Validation.RequireMaxLength(artistName, Validation.MaxNameLength, "Artist name") is { } artistError)
             return artistError;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetAlbumByName", ActivityKind.Server);
@@ -62,9 +59,9 @@ public static class AlbumEndpoints
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        if (Validation.RequireMaxLength(artistMusicBrainzId, MaxMbidLength, "Artist musicBrainzId") is { } artistError)
+        if (Validation.RequireMaxLength(artistMusicBrainzId, Validation.MaxMbidLength, "Artist musicBrainzId") is { } artistError)
             return artistError;
-        if (Validation.RequireMaxLength(albumMusicBrainzId, MaxMbidLength, "Album musicBrainzId") is { } albumError)
+        if (Validation.RequireMaxLength(albumMusicBrainzId, Validation.MaxMbidLength, "Album musicBrainzId") is { } albumError)
             return albumError;
 
         using Activity? activity = Telemetry.ActivitySource.StartActivity("GetAlbumByMusicBrainzId", ActivityKind.Server);
