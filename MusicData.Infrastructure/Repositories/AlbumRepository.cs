@@ -31,9 +31,9 @@ internal sealed class AlbumRepository(ILiteDatabase database)
     public AlbumEntity? GetByMusicBrainzID(string musicBrainzID) =>
         FreshOrNull(FindByLowerField(nameof(AlbumEntity.MusicBrainzID), musicBrainzID));
 
-    public AlbumEntity? GetByName(string albumName, string artistName) =>
+    public AlbumEntity? GetByName(string albumName, string artistMusicBrainzId) =>
         FreshOrNull(Collection.FindOne(
-            "LOWER($.Name) = @0 AND LOWER($.Artist) = @1",
+            "LOWER($.Name) = @0 AND LOWER($.MusicBrainzArtistID) = @1",
             (albumName ?? string.Empty).ToLowerInvariant(),
-            (artistName ?? string.Empty).ToLowerInvariant()));
+            (artistMusicBrainzId ?? string.Empty).ToLowerInvariant()));
 }
