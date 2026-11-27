@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.HttpOverrides;
 using MusicData.Api.Endpoints;
 using MusicData.Application;
 using MusicData.Infrastructure;
@@ -46,12 +45,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-ForwardedHeadersOptions forwardOptions = new()
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-
-app.UseForwardedHeaders(forwardOptions);
+app.UseForwardedHeaders(MusicData.Api.ForwardedHeadersSetup.Create(app.Configuration));
 
 if (!app.Environment.IsEnvironment("Docker"))
     app.UseHttpsRedirection();

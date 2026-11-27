@@ -161,9 +161,10 @@ public static class ConfigureServices
         {
             options.AddPolicy("IpPolicy", httpContext =>
             {
-                string clientIp = httpContext.Connection.RemoteIpAddress?.ToString()
-                                  ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                                  ?? "unknown";
+                // Only the connection address (rewritten by UseForwardedHeaders for
+                // trusted proxies). Reading X-Forwarded-For here would let any
+                // client pick its own rate-limit bucket.
+                string clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
                 return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
                 {
