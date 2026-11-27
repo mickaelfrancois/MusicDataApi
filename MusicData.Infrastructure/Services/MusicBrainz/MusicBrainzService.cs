@@ -166,7 +166,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
             if (!entered)
                 throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
-            Release release = await _client.Releases.GetAsync(releaseMusicBrainzId, "artist-rels", "url-rels", "release-groups");
+            Release release = await _client.Releases.GetAsync(releaseMusicBrainzId, "artist-credits", "artist-rels", "url-rels", "release-groups");
             if (release == null)
             {
                 logger.LogDebug("Release with MBID '{ReleaseMbId}' not found", releaseMusicBrainzId);

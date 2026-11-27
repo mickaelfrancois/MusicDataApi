@@ -42,6 +42,7 @@ internal static class MusicBrainzMapper
         {
             Name = release.Title ?? string.Empty,
             MusicBrainzID = release.Id ?? string.Empty,
+            MusicBrainzArtistID = release.Credits?.FirstOrDefault()?.Artist?.Id ?? string.Empty,
             ReleaseGroupMusicBrainzID = release.ReleaseGroup?.Id ?? null,
             ReleaseFormat = release.Media != null && release.Media.Count > 0 ? release.Media[0].Format : null,
             Label = release.Labels != null && release.Labels.Count > 0 ? release.Labels[0].Label?.Name : null,

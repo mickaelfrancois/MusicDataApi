@@ -10,5 +10,9 @@ public interface IMusicAggregator
 
     Task<AlbumDto?> GetAlbumByNameAsync(string albumName, string artistMusicBrainzId, CancellationToken cancellationToken);
 
-    Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken);
+    /// <summary>
+    /// The artist MBID and release-group id are derived from the MusicBrainz
+    /// release itself, never taken from the caller.
+    /// </summary>
+    Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, CancellationToken cancellationToken);
 }

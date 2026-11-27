@@ -64,7 +64,7 @@ public class MusicAggregatorTests
         FakeService coverArt = new() { Album = (_, _) => new AlbumDto { PictureUrl = "https://img/cover.jpg" } };
 
         await Assert.ThrowsAsync<ExternalServicesUnavailableException>(
-            () => Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, CancellationToken.None));
+            () => Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, CancellationToken.None));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class MusicAggregatorTests
         FakeMusicBrainz musicBrainz = new() { Album = (_, _) => null };
         FakeService coverArt = new() { Album = (_, _) => new AlbumDto { PictureUrl = "https://img/cover.jpg" } };
 
-        Assert.Null(await Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, CancellationToken.None));
+        Assert.Null(await Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, CancellationToken.None));
     }
 
     [Fact]
@@ -96,11 +96,59 @@ public class MusicAggregatorTests
         FakeService lastFm = new() { Album = (_, _) => new AlbumDto { Name = "Abbey Road (Remastered)", MusicBrainzID = "lastfm-mbid", Artist = "The Beatles" } };
         FakeMusicBrainz musicBrainz = new() { Album = (id, _) => new AlbumDto { Name = "Abbey Road", MusicBrainzID = id } };
 
-        AlbumDto? album = await Create(lastFm, musicBrainz).GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, CancellationToken.None);
+        AlbumDto? album = await Create(lastFm, musicBrainz).GetAlbumByMusicBrainzIdAsync(AlbumMbid, CancellationToken.None);
 
         Assert.Equal("Abbey Road", album!.Name);
         Assert.Equal(AlbumMbid, album.MusicBrainzID);
         Assert.Equal("The Beatles", album.Artist);
+    }
+
+    [Fact]
+    public async Task AlbumByMbid_ArtistAndReleaseGroup_ComeFromMusicBrainz_AndReachTheOtherProviders()
+    {
+        FakeMusicBrainz musicBrainz = new()
+        {
+            Album = (id, _) => new AlbumDto { Name = "Abbey Road", MusicBrainzID = id, MusicBrainzArtistID = ArtistMbid, ReleaseGroupMusicBrainzID = "release-group-id" }
+        };
+        FakeService fanart = new() { Album = (_, releaseGroupId) => releaseGroupId is null ? null : new AlbumDto { PictureUrl = "https://img/cover.jpg" } };
+
+        AlbumDto? album = await Create(musicBrainz, fanart).GetAlbumByMusicBrainzIdAsync(AlbumMbid, CancellationToken.None);
+
+        Assert.Equal(ArtistMbid, album!.MusicBrainzArtistID);
+        Assert.Equal("release-group-id", album.ReleaseGroupMusicBrainzID);
+        Assert.Equal("https://img/cover.jpg", album.PictureUrl);
+        Assert.Equal((AlbumMbid, "release-group-id"), Assert.Single(fanart.AlbumCalls));
+        Assert.Single(musicBrainz.AlbumCalls);
+        Assert.False(album.IsPartial);
+    }
+
+    [Fact]
+    public async Task AlbumByMbid_SecondaryFailed_IsPartial()
+    {
+        FakeMusicBrainz musicBrainz = new() { Album = (id, _) => new AlbumDto { Name = "Abbey Road", MusicBrainzID = id } };
+        FakeService coverArt = new() { Album = (_, _) => throw new TimeoutException() };
+
+        AlbumDto? album = await Create(musicBrainz, coverArt).GetAlbumByMusicBrainzIdAsync(AlbumMbid, CancellationToken.None);
+
+        Assert.Equal("Abbey Road", album!.Name);
+        Assert.True(album.IsPartial);
+    }
+
+    [Fact]
+    public async Task AlbumByName_SameAlbumAsByMbid_ButKeyedOnTheQueriedArtist()
+    {
+        FakeMusicBrainz musicBrainz = new()
+        {
+            FindAlbum = (_, _) => new MusicBrainzReleaseInfo { ReleaseId = AlbumMbid },
+            Album = (id, _) => new AlbumDto { Name = "Abbey Road", MusicBrainzID = id, MusicBrainzArtistID = "first-credit", ReleaseGroupMusicBrainzID = "release-group-id" }
+        };
+        FakeService fanart = new() { Album = (_, releaseGroupId) => new AlbumDto { PictureUrl = "cover-of-" + releaseGroupId } };
+
+        AlbumDto? album = await Create(musicBrainz, fanart).GetAlbumByNameAsync("Abbey Road", ArtistMbid, CancellationToken.None);
+
+        Assert.Equal(AlbumMbid, album!.MusicBrainzID);
+        Assert.Equal(ArtistMbid, album.MusicBrainzArtistID);
+        Assert.Equal("cover-of-release-group-id", album.PictureUrl);
     }
 
     [Fact]

@@ -60,10 +60,12 @@ internal abstract class RateLimitedAggregator<TService>
     protected async Task<RunResult<TResult>> RunAllSafeAsync<TResult>(
         string entityKind,
         Func<TService, CancellationToken, Task<TResult?>> call,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TService, bool>? only = null)
         where TResult : class
     {
         Task<ServiceOutcome<TResult>>[] tasks = Services
+            .Where(s => only is null || only(s))
             .Select(s => SafeRunAsync(s, entityKind, call, cancellationToken))
             .ToArray();
 

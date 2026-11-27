@@ -79,50 +79,62 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (releaseInfo is null || string.IsNullOrEmpty(releaseInfo.ReleaseId))
             return null;
 
-        string releaseId = releaseInfo.ReleaseId;
-        string? releaseGroupId = releaseInfo.ReleaseGroupId;
+        AlbumDto? album = await GetAlbumByMusicBrainzIdAsync(releaseInfo.ReleaseId, cancellationToken);
 
-        RunResult<AlbumDto> run = await RunAllSafeAsync(
-            "album",
-            (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
-            cancellationToken);
+        // The search was scoped to this artist (arid), so the release is credited
+        // to it even when it is not the first credit; by-name lookups key on it.
+        if (album is not null)
+            album.MusicBrainzArtistID = artistMusicBrainzId;
 
-        AlbumDto? identity = RequireIdentity(run, "album");
-        if (identity is null)
-            return null;
-
-        AlbumDto merged = BuildMergedAlbum(run.Items);
-        if (!string.IsNullOrWhiteSpace(identity.Name))
-            merged.Name = identity.Name;
-        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
-            merged.MusicBrainzID = identity.MusicBrainzID;
-        merged.IsPartial = run.HasFailures;
-        merged.MusicBrainzArtistID = artistMusicBrainzId;
-        return merged;
+        return album;
     }
 
 
-    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, string artistMusicBrainzId, CancellationToken cancellationToken)
+    public async Task<AlbumDto?> GetAlbumByMusicBrainzIdAsync(string albumMusicBrainzId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
+        if (string.IsNullOrEmpty(albumMusicBrainzId))
             return null;
 
-        RunResult<AlbumDto> run = await RunAllSafeAsync(
-            "album",
-            (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
-            cancellationToken);
+        // MusicBrainz first: it is the source of identity (failure = 503, unknown
+        // release = 404) and of the release-group id / artist MBID the other
+        // providers and the cache need. Neither is taken from the caller.
+        IMusicService? musicBrainz = Services.FirstOrDefault(s => s is IMusicBrainzLookup);
+        if (musicBrainz is null)
+            throw new ExternalServicesUnavailableException("album");
 
-        AlbumDto? identity = RequireIdentity(run, "album");
+        AlbumDto? identity = await RunRequiredAsync(
+            musicBrainz,
+            "album",
+            ct => musicBrainz.GetAlbumAsync(albumMusicBrainzId, null, ct),
+            cancellationToken);
         if (identity is null)
             return null;
 
-        AlbumDto merged = BuildMergedAlbum(run.Items);
-        if (!string.IsNullOrWhiteSpace(identity.Name))
-            merged.Name = identity.Name;
-        if (!string.IsNullOrWhiteSpace(identity.MusicBrainzID))
-            merged.MusicBrainzID = identity.MusicBrainzID;
+        string? releaseGroupId = identity.ReleaseGroupMusicBrainzID;
+
+        RunResult<AlbumDto> run = await RunAllSafeAsync(
+            "album",
+            (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, releaseGroupId, ct),
+            cancellationToken,
+            only: s => !ReferenceEquals(s, musicBrainz));
+
+        // Keep the registration order as the merge priority.
+        List<AlbumDto> albums = [];
+        foreach (IMusicService service in Services)
+        {
+            AlbumDto? album = ReferenceEquals(service, musicBrainz)
+                ? identity
+                : run.Outcomes.FirstOrDefault(o => ReferenceEquals(o.Service, service)).Result;
+            if (album is not null)
+                albums.Add(album);
+        }
+
+        AlbumDto merged = BuildMergedAlbum(albums);
+        merged.Name = FirstNonEmpty([identity, merged], a => a.Name);
+        merged.MusicBrainzID = FirstNonEmpty([identity, merged], a => a.MusicBrainzID);
+        merged.MusicBrainzArtistID = identity.MusicBrainzArtistID;
+        merged.ReleaseGroupMusicBrainzID = releaseGroupId;
         merged.IsPartial = run.HasFailures;
-        merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
     }
 

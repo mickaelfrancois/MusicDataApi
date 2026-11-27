@@ -52,6 +52,29 @@ public class MusicBrainzServiceTests
     }
 
     [Fact]
+    public async Task GetAlbum_MapsArtistAndReleaseGroup_FromTheRelease()
+    {
+        StubHandler handler = new(_ => Json(HttpStatusCode.OK, $$"""
+            {
+              "id": "{{Mbid}}",
+              "title": "Abbey Road",
+              "date": "1969-09-26",
+              "artist-credit": [ { "name": "The Beatles", "artist": { "id": "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", "name": "The Beatles" } } ],
+              "release-group": { "id": "9162580e-5df4-32de-80cc-f45a8d8a9b1d", "first-release-date": "1969-09-26" }
+            }
+            """));
+
+        var album = await Create(handler).GetAlbumAsync(Mbid, null, CancellationToken.None);
+
+        Assert.Equal("Abbey Road", album!.Name);
+        Assert.Equal("b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d", album.MusicBrainzArtistID);
+        Assert.Equal("9162580e-5df4-32de-80cc-f45a8d8a9b1d", album.ReleaseGroupMusicBrainzID);
+        string url = Assert.Single(handler.Urls);
+        Assert.Contains("artist-credits", url);
+        Assert.Contains("release-groups", url);
+    }
+
+    [Fact]
     public async Task FindArtist_ServerError_Throws_InsteadOfLookingLikeNoMatch()
     {
         MusicBrainzService sut = Create(new StubHandler(_ => Json(HttpStatusCode.ServiceUnavailable, """{"error":"Rate limited"}""")));

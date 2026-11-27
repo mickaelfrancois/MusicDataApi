@@ -28,7 +28,7 @@ public class AlbumsApiTests : IClassFixture<MusicDataApiFactory>
             Origin = "Aggregated"
         };
         _factory.MusicAggregator
-            .GetAlbumByMusicBrainzIdAsync(AlbumMbid, ArtistMbid, Arg.Any<CancellationToken>())
+            .GetAlbumByMusicBrainzIdAsync(AlbumMbid, Arg.Any<CancellationToken>())
             .Returns(stub);
 
         using HttpClient client = _factory.CreateAuthenticatedClient();
@@ -38,6 +38,25 @@ public class AlbumsApiTests : IClassFixture<MusicDataApiFactory>
         AlbumDto? body = await response.Content.ReadFromJsonAsync<AlbumDto>();
         Assert.NotNull(body);
         Assert.Equal("Wasting Light", body!.Name);
+    }
+
+    [Fact]
+    public async Task ByMbid_CallerSuppliedArtistMbid_IsNotCachedNorServed()
+    {
+        const string albumMbid = "0d5d4b2e-4c5f-4a39-9d4b-3c1b6f7a1c11";
+        const string forgedArtistMbid = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+        _factory.MusicAggregator
+            .GetAlbumByMusicBrainzIdAsync(albumMbid, Arg.Any<CancellationToken>())
+            .Returns(_ => new AlbumDto { Name = "Abbey Road", MusicBrainzID = albumMbid, MusicBrainzArtistID = ArtistMbid });
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        client.DefaultRequestHeaders.CacheControl = new() { NoCache = true };
+        AlbumDto? forged = await client.GetFromJsonAsync<AlbumDto>($"/v1/albums/byMbid/{forgedArtistMbid}/{albumMbid}");
+        AlbumDto? cached = await client.GetFromJsonAsync<AlbumDto>($"/v1/albums/byMbid/{ArtistMbid}/{albumMbid}");
+
+        Assert.Equal(ArtistMbid, forged!.MusicBrainzArtistID);
+        Assert.Equal("Cache", cached!.Origin);
+        Assert.Equal(ArtistMbid, cached.MusicBrainzArtistID);
     }
 
     [Theory]
