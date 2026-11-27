@@ -25,12 +25,23 @@ internal abstract class RateLimitedAggregator<TService>
     }
 
     /// <summary>
-    /// Outcome of a fan-out: the non-null results plus how many providers
-    /// failed (exception or timeout, as opposed to a genuine "not found").
+    /// What one provider answered: a result, a genuine "not found" (null
+    /// result, not failed) or a failure (exception or timeout).
     /// </summary>
-    protected readonly record struct RunResult<TResult>(IReadOnlyList<TResult> Items, int Failures)
+    protected readonly record struct ServiceOutcome<TResult>(TService Service, TResult? Result, bool Failed)
+        where TResult : class;
+
+    /// <summary>
+    /// Outcome of a fan-out: one entry per provider, in registration order,
+    /// plus the non-null results and how many providers failed.
+    /// </summary>
+    protected readonly record struct RunResult<TResult>(IReadOnlyList<ServiceOutcome<TResult>> Outcomes)
         where TResult : class
     {
+        public IReadOnlyList<TResult> Items { get; } = Outcomes.Where(o => o.Result is not null).Select(o => o.Result!).ToList();
+
+        public int Failures => Outcomes.Count(o => o.Failed);
+
         public bool HasFailures => Failures > 0;
 
         /// <summary>
@@ -52,17 +63,15 @@ internal abstract class RateLimitedAggregator<TService>
         CancellationToken cancellationToken)
         where TResult : class
     {
-        Task<(TResult? Result, bool Failed)>[] tasks = Services
+        Task<ServiceOutcome<TResult>>[] tasks = Services
             .Select(s => SafeRunAsync(s, entityKind, call, cancellationToken))
             .ToArray();
 
-        (TResult? Result, bool Failed)[] outcomes = await Task.WhenAll(tasks);
-        List<TResult> items = outcomes.Where(o => o.Result is not null).Select(o => o.Result!).ToList();
-        return new RunResult<TResult>(items, outcomes.Count(o => o.Failed));
+        return new RunResult<TResult>(await Task.WhenAll(tasks));
     }
 
 
-    private async Task<(TResult? Result, bool Failed)> SafeRunAsync<TResult>(
+    private async Task<ServiceOutcome<TResult>> SafeRunAsync<TResult>(
         TService service,
         string entityKind,
         Func<TService, CancellationToken, Task<TResult?>> call,
@@ -83,7 +92,7 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", result is null ? "not_found" : "ok" }
             });
-            return (result, false);
+            return new ServiceOutcome<TResult>(service, result, false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -97,7 +106,7 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", "error" }
             });
-            return (null, true);
+            return new ServiceOutcome<TResult>(service, null, true);
         }
     }
 

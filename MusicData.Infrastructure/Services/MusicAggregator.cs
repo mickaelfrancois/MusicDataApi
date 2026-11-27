@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using MusicData.Application.DTOs;
+using MusicData.Application.Exceptions;
 using MusicData.Application.Interfaces;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Infrastructure.Services.MusicBrainz;
@@ -43,11 +44,10 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetArtistAsync(musicBrainzId, ct),
             cancellationToken);
 
-        IReadOnlyList<ArtistDto> artists = run.RequireItemsOrNotFound("artist");
-        if (artists.Count == 0)
+        if (RequireIdentity(run, "artist") is null)
             return null;
 
-        ArtistDto merged = BuildMergedArtist(artists);
+        ArtistDto merged = BuildMergedArtist(run.Items);
         merged.IsPartial = run.HasFailures;
         return merged;
     }
@@ -70,11 +70,10 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
             cancellationToken);
 
-        IReadOnlyList<AlbumDto> albums = run.RequireItemsOrNotFound("album");
-        if (albums.Count == 0)
+        if (RequireIdentity(run, "album") is null)
             return null;
 
-        AlbumDto merged = BuildMergedAlbum(albums);
+        AlbumDto merged = BuildMergedAlbum(run.Items);
         merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
@@ -91,14 +90,30 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
             (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
             cancellationToken);
 
-        IReadOnlyList<AlbumDto> albums = run.RequireItemsOrNotFound("album");
-        if (albums.Count == 0)
+        if (RequireIdentity(run, "album") is null)
             return null;
 
-        AlbumDto merged = BuildMergedAlbum(albums);
+        AlbumDto merged = BuildMergedAlbum(run.Items);
         merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
+    }
+
+
+    /// <summary>
+    /// MusicBrainz is the source of identity (name, MBID): without its answer
+    /// the other providers' data cannot be attributed to anything. Throws when
+    /// it failed (503, never cached) and returns null when it genuinely does
+    /// not know the entity (404), whatever the secondary providers said.
+    /// </summary>
+    private static TDto? RequireIdentity<TDto>(RunResult<TDto> run, string entityKind)
+        where TDto : class
+    {
+        ServiceOutcome<TDto> musicBrainz = run.Outcomes.FirstOrDefault(o => o.Service is IMusicBrainzLookup);
+        if (musicBrainz.Service is null || musicBrainz.Failed)
+            throw new ExternalServicesUnavailableException(entityKind);
+
+        return musicBrainz.Result;
     }
 
 

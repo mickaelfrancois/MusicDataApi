@@ -50,15 +50,44 @@ public class FanartServiceTests
         Assert.Null(await sut.GetArtistAsync("mbid", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GetArtist_WithoutAnyImage_ReturnsNull_InsteadOfAnEmptyDto()
+    {
+        FanartService sut = Create("""{"name":"Foo","mbid_id":"x","artistbackground":[]}""");
 
-    private sealed class CapturingHandler(HttpStatusCode status) : HttpMessageHandler
+        Assert.Null(await sut.GetArtistAsync("mbid", CancellationToken.None));
+        Assert.Null(await sut.GetAlbumAsync("release", "release-group", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetArtist_WithImages_MapsThem()
+    {
+        FanartService sut = Create("""{"artistthumb":[{"url":"https://img/thumb.jpg","likes":"3"}]}""");
+
+        Assert.Equal("https://img/thumb.jpg", (await sut.GetArtistAsync("mbid", CancellationToken.None))!.PictureUrl);
+        Assert.Equal("https://img/thumb.jpg", (await sut.GetAlbumAsync("release", "release-group", CancellationToken.None))!.PictureUrl);
+    }
+
+
+    private static FanartService Create(string json) => new(
+        new HttpClient(new CapturingHandler(HttpStatusCode.OK, json)) { BaseAddress = new Uri("https://fanart.test/") },
+        new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+        Options.Create(new FanartSettings { ApiKey = "k" }),
+        NullLogger<FanartService>.Instance);
+
+
+    private sealed class CapturingHandler(HttpStatusCode status, string? json = null) : HttpMessageHandler
     {
         public List<Uri> Requests { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request.RequestUri!);
-            return Task.FromResult(new HttpResponseMessage(status));
+            HttpResponseMessage response = new(status);
+            if (json is not null)
+                response.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            return Task.FromResult(response);
         }
     }
 }
