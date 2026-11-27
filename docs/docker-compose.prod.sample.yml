@@ -2,8 +2,11 @@
 # MusicDataApi – docker-compose de production (Traefik)
 #
 # Avant de déployer :
-#   - remplacer le sous-réseau de ForwardedHeaders__KnownNetworks__0 par celui du réseau
-#     Traefik :  docker network inspect traefik-network --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+#   - remplacer l'IP de ForwardedHeaders__KnownProxies__0 par celle du conteneur Traefik
+#     (nom du conteneur à adapter) :
+#       docker inspect traefik --format '{{(index .NetworkSettings.Networks "traefik-network").IPAddress}}'
+#     Cette IP change si Traefik est recréé : lui donner une IP fixe (ipv4_address dans son
+#     compose), sinon le limiteur voit à nouveau l'IP de Traefik au lieu de celle des clients.
 #   - /srv/docker/data/musicdataapi/data doit être accessible en écriture par l'UID 1654
 #     (utilisateur de l'image) :  chown -R 1654:1654 /srv/docker/data/musicdataapi/data
 #   - appsettings.json (monté en appsettings.Production.json) porte ApiKeySettings:Key et
@@ -23,10 +26,13 @@ services:
     # Pour un accès de debug local uniquement : - "127.0.0.1:8090:8080"
 
     environment:
-      # Traefik est le seul proxy de confiance : le limiteur de débit par IP lit alors
+      # Seul Traefik est un proxy de confiance : le limiteur de débit par IP lit alors
       # l'IP réelle du client dans X-Forwarded-For (sinon tous les clients partagent
       # l'IP de Traefik, donc un seul quota).
-      ForwardedHeaders__KnownNetworks__0: 172.18.0.0/16
+      # On liste l'IP de Traefik et non le sous-réseau : traefik-network est partagé avec
+      # d'autres conteneurs, et tout conteneur d'un réseau de confiance pourrait falsifier
+      # X-Forwarded-For pour échapper au limiteur.
+      ForwardedHeaders__KnownProxies__0: 172.18.0.2
 
     volumes:
       - /srv/docker/data/musicdataapi/data:/data:rw
