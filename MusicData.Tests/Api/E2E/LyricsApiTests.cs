@@ -53,4 +53,18 @@ public class LyricsApiTests : IClassFixture<MusicDataApiFactory>
         Assert.Equal("Wasting Light", body.AlbumName);
         Assert.Equal(257, body.Duration);
     }
+
+    [Fact]
+    public async Task AlbumNameAndDuration_AreOptional()
+    {
+        LyricsDto stub = new() { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "x", Origin = "LrcLib" };
+        _factory.LyricsAggregator
+            .GetLyricsAsync("Walk", "Foo Fighters", "", 0, Arg.Any<CancellationToken>())
+            .Returns(stub);
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        HttpResponseMessage response = await client.GetAsync("/v1/lyrics?title=Walk&artistName=Foo Fighters");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

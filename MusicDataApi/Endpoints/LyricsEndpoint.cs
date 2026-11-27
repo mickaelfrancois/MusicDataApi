@@ -25,7 +25,7 @@ public static class LyricsEndpoint
     public static async Task<IResult> GetAsync(
         [FromQuery] string title,
         [FromQuery] string artistName,
-        [FromQuery] string albumName,
+        [FromQuery] string? albumName,
         [FromQuery] int duration,
         [FromServices] IGetLyrics getLyrics,
         HttpContext httpContext,
@@ -44,7 +44,7 @@ public static class LyricsEndpoint
         if (duration > 0)
             activity?.SetTag("lyrics.duration", duration);
 
-        LyricsDto? result = await getLyrics.HandleAsync(title, artistName, albumName, duration, cancellationToken);
+        LyricsDto? result = await getLyrics.HandleAsync(title, artistName, albumName ?? string.Empty, duration, cancellationToken);
         if (result is null)
             return Results.NotFound();
 
