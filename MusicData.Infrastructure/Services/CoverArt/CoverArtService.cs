@@ -45,15 +45,10 @@ public class CoverArtService(HttpClient httpClient, JsonSerializerOptions jsonOp
             logger.LogDebug("Album found: {Album}", releaseMusicBrainzId);
             return CoverArtMapper.Map(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 }

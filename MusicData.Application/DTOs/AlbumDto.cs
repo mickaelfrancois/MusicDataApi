@@ -4,6 +4,9 @@ public class AlbumDto : IOriginAware
 {
     public string Origin { get; set; } = string.Empty;
 
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPartial { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string MusicBrainzArtistID { get; set; } = string.Empty;

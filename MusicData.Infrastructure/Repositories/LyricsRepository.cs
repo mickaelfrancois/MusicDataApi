@@ -15,6 +15,12 @@ internal sealed class LyricsRepository(ILiteDatabase database)
     protected override int SchemaVersion => 3;
 
 
+    // Negative markers expire quickly: lyrics may be published later or a
+    // provider may simply have been down when the marker was written.
+    protected override TimeSpan TimeToLive(LyricsEntity entity) =>
+        entity.NotFound ? TimeSpan.FromDays(1) : base.TimeToLive(entity);
+
+
     public static void EnsureIndexes(ILiteCollection<LyricsEntity> collection)
     {
         collection.EnsureIndex(x => x.Title, unique: false);

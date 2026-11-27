@@ -122,7 +122,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
             Artist artist = await _client.Artists.GetAsync(musicBrainzId, "artist-rels", "url-rels");
 
@@ -136,15 +136,15 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(artist);
         }
-        catch (OperationCanceledException ex)
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            logger.LogDebug(ex, "Operation canceled");
+            logger.LogDebug(ex, "Not found upstream");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {
@@ -165,7 +165,7 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
         {
             entered = await _concurrencySemaphore.WaitAsync(_waitTimeout, cancellationToken);
             if (!entered)
-                return null;
+                throw new TimeoutException("MusicBrainz is busy (concurrency slot not acquired in time).");
 
             Release release = await _client.Releases.GetAsync(releaseMusicBrainzId, "artist-rels", "url-rels", "release-groups");
             if (release == null)
@@ -178,15 +178,15 @@ public partial class MusicBrainzService(HttpClient httpClient, ILogger<MusicBrai
 
             return MusicBrainzMapper.Map(release);
         }
-        catch (OperationCanceledException ex)
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            logger.LogDebug(ex, "Operation canceled");
+            logger.LogDebug(ex, "Not found upstream");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
         finally
         {

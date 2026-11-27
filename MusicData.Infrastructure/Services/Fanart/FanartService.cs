@@ -38,15 +38,10 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Found Artist '{MusicBrainzId}'", musicBrainzId);
             return FanartMapper.MapArtist(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 
@@ -79,15 +74,10 @@ public class FanartService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Found Album '{ReleaseGroupMusicBrainzId}'", releaseGroupMusicBrainzId);
             return FanartMapper.MapAlbum(root);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled in GetArtistAsync");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "FanartService.GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 }

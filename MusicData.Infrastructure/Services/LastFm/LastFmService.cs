@@ -39,15 +39,10 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Artist found: {Artist}", root.Artist.Name);
             return LastFmMapper.Map(root.Artist);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetArtistAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 
@@ -79,15 +74,10 @@ public class LastFmService(HttpClient httpClient, JsonSerializerOptions jsonOpti
             logger.LogDebug("Album found: {Album}", root.Album.Name);
             return LastFmMapper.Map(root.Album);
         }
-        catch (OperationCanceledException ex)
-        {
-            logger.LogDebug(ex, "Operation canceled");
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "GetAlbumAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
     }
 }

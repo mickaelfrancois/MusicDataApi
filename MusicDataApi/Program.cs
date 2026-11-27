@@ -19,6 +19,7 @@ builder.Services.AddIpRateLimiting(builder.Configuration);
 builder.Services.AddResponseCaching();
 builder.Services.AddApiAuthentication();
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<MusicData.Api.ExternalServicesExceptionHandler>();
 
 JsonSerializerOptions jsonOptions = new()
 {

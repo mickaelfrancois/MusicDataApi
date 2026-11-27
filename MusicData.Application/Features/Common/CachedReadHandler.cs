@@ -64,6 +64,13 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
             return null;
         }
 
+        if (fetched.IsPartial)
+        {
+            _logger.LogWarning("{Entity} '{Key}' is incomplete (a provider failed); returned but not cached.", EntityKind, key);
+            Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "partial" } });
+            return fetched;
+        }
+
         Persist(fetched);
         _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
         Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "external" } });

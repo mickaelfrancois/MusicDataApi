@@ -38,12 +38,18 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrWhiteSpace(musicBrainzId))
             return null;
 
-        IReadOnlyList<ArtistDto> artists = await RunAllSafeAsync(
+        RunResult<ArtistDto> run = await RunAllSafeAsync(
             "artist",
             (s, ct) => s.GetArtistAsync(musicBrainzId, ct),
             cancellationToken);
 
-        return artists.Count == 0 ? null : BuildMergedArtist(artists);
+        IReadOnlyList<ArtistDto> artists = run.RequireItemsOrNotFound("artist");
+        if (artists.Count == 0)
+            return null;
+
+        ArtistDto merged = BuildMergedArtist(artists);
+        merged.IsPartial = run.HasFailures;
+        return merged;
     }
 
 
@@ -59,15 +65,17 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         string releaseId = releaseInfo.ReleaseId;
         string? releaseGroupId = releaseInfo.ReleaseGroupId;
 
-        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
+        RunResult<AlbumDto> run = await RunAllSafeAsync(
             "album",
             (s, ct) => s.GetAlbumAsync(releaseId, releaseGroupId, ct),
             cancellationToken);
 
+        IReadOnlyList<AlbumDto> albums = run.RequireItemsOrNotFound("album");
         if (albums.Count == 0)
             return null;
 
         AlbumDto merged = BuildMergedAlbum(albums);
+        merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
     }
@@ -78,15 +86,17 @@ internal sealed class MusicAggregator : RateLimitedAggregator<IMusicService>, IM
         if (string.IsNullOrEmpty(albumMusicBrainzId) || string.IsNullOrWhiteSpace(artistMusicBrainzId))
             return null;
 
-        IReadOnlyList<AlbumDto> albums = await RunAllSafeAsync(
+        RunResult<AlbumDto> run = await RunAllSafeAsync(
             "album",
             (s, ct) => s.GetAlbumAsync(albumMusicBrainzId, null, ct),
             cancellationToken);
 
+        IReadOnlyList<AlbumDto> albums = run.RequireItemsOrNotFound("album");
         if (albums.Count == 0)
             return null;
 
         AlbumDto merged = BuildMergedAlbum(albums);
+        merged.IsPartial = run.HasFailures;
         merged.MusicBrainzArtistID = artistMusicBrainzId;
         return merged;
     }

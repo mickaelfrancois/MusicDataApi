@@ -21,6 +21,13 @@ internal abstract class LiteDbRepository<TEntity>
     protected virtual int SchemaVersion => 1;
 
     /// <summary>
+    /// How long a cached row stays valid. Expired rows are treated as cache
+    /// misses (and overwritten in place by the next <see cref="Add"/>), so
+    /// provider data never goes stale forever.
+    /// </summary>
+    protected virtual TimeSpan TimeToLive(TEntity entity) => TimeSpan.FromDays(30);
+
+    /// <summary>
     /// Returns the row that <paramref name="incoming"/> should overwrite, or
     /// null when there is no existing row to merge into.
     /// </summary>
@@ -47,11 +54,15 @@ internal abstract class LiteDbRepository<TEntity>
 
 
     /// <summary>
-    /// Treats rows persisted under an older schema as cache misses so the
-    /// handler will refresh them.
+    /// Treats rows persisted under an older schema, or older than their
+    /// <see cref="TimeToLive"/>, as cache misses so the handler refreshes them.
     /// </summary>
     protected TEntity? FreshOrNull(TEntity? entity) =>
-        entity is null || entity.Version < SchemaVersion ? null : entity;
+        entity is null
+        || entity.Version < SchemaVersion
+        || DateTime.UtcNow - entity.UpdateDateTime > TimeToLive(entity)
+            ? null
+            : entity;
 
 
     /// <summary>

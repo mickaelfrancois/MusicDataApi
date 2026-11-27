@@ -64,6 +64,19 @@ public class GetLyricsTests
     }
 
     [Fact]
+    public async Task PartialResult_IsReturned_ButNotPersisted()
+    {
+        _repo.Get("Walk", "Foo Fighters").Returns((LyricsEntity?)null);
+        LyricsDto partial = new() { Title = "Walk", ArtistName = "Foo Fighters", PlainLyrics = "...", IsPartial = true };
+        _aggregator.GetLyricsAsync("Walk", "Foo Fighters", "", 0, Arg.Any<CancellationToken>()).Returns(partial);
+
+        LyricsDto? result = await _sut.HandleAsync("Walk", "Foo Fighters", "", 0);
+
+        Assert.Same(partial, result);
+        _repo.DidNotReceive().Add(Arg.Any<LyricsEntity>());
+    }
+
+    [Fact]
     public async Task CacheMiss_AggregatorReturnsLyrics_PersistsAndReturns()
     {
         _repo.Get("Walk", "Foo Fighters").Returns((LyricsEntity?)null);

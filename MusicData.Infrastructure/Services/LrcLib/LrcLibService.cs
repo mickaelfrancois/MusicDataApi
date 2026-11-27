@@ -36,14 +36,10 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
                 Origin = "LrcLib"
             };
         }
-        catch (OperationCanceledException)
-        {
-            return null;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "LrcLibService.GetLyricsAsync: {Message}", ex.Message);
-            return null;
+            throw;
         }
 
         return lyrics;
@@ -55,7 +51,7 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
         string requestUrl = $"api/get?artist_name={Uri.EscapeDataString(artistName)}&track_name={Uri.EscapeDataString(title)}&album_name={Uri.EscapeDataString(albumName)}&duration={duration}";
 
         using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        if (response.IsNotFoundOrThrow())
             return null;
 
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -69,7 +65,7 @@ public class LrcLibService(HttpClient httpClient, JsonSerializerOptions jsonOpti
         string requestUrl = $"api/search?artist_name={Uri.EscapeDataString(artistName)}&track_name={Uri.EscapeDataString(title)}&album_name={Uri.EscapeDataString(albumName)}";
 
         using HttpResponseMessage response = await httpClient.GetAsync(requestUrl, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        if (response.IsNotFoundOrThrow())
             return null;
 
         string json = await response.Content.ReadAsStringAsync(cancellationToken);

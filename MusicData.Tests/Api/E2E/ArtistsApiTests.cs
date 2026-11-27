@@ -28,6 +28,20 @@ public class ArtistsApiTests : IClassFixture<MusicDataApiFactory>
     }
 
     [Fact]
+    public async Task ByMbid_AllProvidersFailed_Returns503WithRetryAfter_NotNotFound()
+    {
+        _factory.MusicAggregator
+            .GetArtistByMusicBrainzIdAsync("mbid-down", Arg.Any<CancellationToken>())
+            .Returns<ArtistDto?>(_ => throw new MusicData.Application.Exceptions.ExternalServicesUnavailableException("artist"));
+
+        using HttpClient client = _factory.CreateAuthenticatedClient();
+        HttpResponseMessage response = await client.GetAsync("/v1/artists/byMbid/mbid-down");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.True(response.Headers.Contains("Retry-After"));
+    }
+
+    [Fact]
     public async Task ByName_AggregatorReturnsArtist_Returns200WithDto()
     {
         ArtistDto stub = new() { Name = "Foo Fighters", MusicBrainzID = "mbid-foo", Origin = "Aggregated" };

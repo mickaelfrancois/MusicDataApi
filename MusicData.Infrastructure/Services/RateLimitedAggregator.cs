@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
+using MusicData.Application.Exceptions;
 using MusicData.Infrastructure.RateLimiting;
 using MusicData.Shared.Telemetry;
 
@@ -23,22 +24,45 @@ internal abstract class RateLimitedAggregator<TService>
             .ToDictionary(t => t, t => CreateLimiter(t, limits));
     }
 
-    protected async Task<IReadOnlyList<TResult>> RunAllSafeAsync<TResult>(
+    /// <summary>
+    /// Outcome of a fan-out: the non-null results plus how many providers
+    /// failed (exception or timeout, as opposed to a genuine "not found").
+    /// </summary>
+    protected readonly record struct RunResult<TResult>(IReadOnlyList<TResult> Items, int Failures)
+        where TResult : class
+    {
+        public bool HasFailures => Failures > 0;
+
+        /// <summary>
+        /// Throws when providers failed and nothing came back: "not found"
+        /// cannot be concluded and must not be cached.
+        /// </summary>
+        public IReadOnlyList<TResult> RequireItemsOrNotFound(string entityKind)
+        {
+            if (Items.Count == 0 && HasFailures)
+                throw new ExternalServicesUnavailableException(entityKind);
+
+            return Items;
+        }
+    }
+
+    protected async Task<RunResult<TResult>> RunAllSafeAsync<TResult>(
         string entityKind,
         Func<TService, CancellationToken, Task<TResult?>> call,
         CancellationToken cancellationToken)
         where TResult : class
     {
-        Task<TResult?>[] tasks = Services
+        Task<(TResult? Result, bool Failed)>[] tasks = Services
             .Select(s => SafeRunAsync(s, entityKind, call, cancellationToken))
             .ToArray();
 
-        TResult?[] results = await Task.WhenAll(tasks);
-        return results.Where(r => r is not null).Cast<TResult>().ToList();
+        (TResult? Result, bool Failed)[] outcomes = await Task.WhenAll(tasks);
+        List<TResult> items = outcomes.Where(o => o.Result is not null).Select(o => o.Result!).ToList();
+        return new RunResult<TResult>(items, outcomes.Count(o => o.Failed));
     }
 
 
-    private async Task<TResult?> SafeRunAsync<TResult>(
+    private async Task<(TResult? Result, bool Failed)> SafeRunAsync<TResult>(
         TService service,
         string entityKind,
         Func<TService, CancellationToken, Task<TResult?>> call,
@@ -59,7 +83,11 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", result is null ? "not_found" : "ok" }
             });
-            return result;
+            return (result, false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -69,7 +97,7 @@ internal abstract class RateLimitedAggregator<TService>
                 { "entity", entityKind },
                 { "result", "error" }
             });
-            return null;
+            return (null, true);
         }
     }
 
