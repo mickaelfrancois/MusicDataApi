@@ -98,7 +98,8 @@ internal abstract class RateLimitedAggregator<TService>
             {
                 { "service", serviceName },
                 { "entity", entityKind },
-                { "result", result is null ? "not_found" : "ok" }
+                { "result", result is null ? "not_found" : "ok" },
+                { "outcome", "ok" }
             });
             return result;
         }
@@ -112,7 +113,8 @@ internal abstract class RateLimitedAggregator<TService>
             {
                 { "service", serviceName },
                 { "entity", entityKind },
-                { "result", "error" }
+                { "result", "error" },
+                { "outcome", Telemetry.ClassifyOutcome(ex) }
             });
             throw new ExternalServicesUnavailableException(entityKind, ex);
         }
@@ -138,7 +140,8 @@ internal abstract class RateLimitedAggregator<TService>
             {
                 { "service", serviceName },
                 { "entity", entityKind },
-                { "result", result is null ? "not_found" : "ok" }
+                { "result", result is null ? "not_found" : "ok" },
+                { "outcome", "ok" }
             });
             return new ServiceOutcome<TResult>(service, result, false);
         }
@@ -146,13 +149,14 @@ internal abstract class RateLimitedAggregator<TService>
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             Telemetry.ExternalCalls.Add(1, new TagList
             {
                 { "service", serviceName },
                 { "entity", entityKind },
-                { "result", "error" }
+                { "result", "error" },
+                { "outcome", Telemetry.ClassifyOutcome(ex) }
             });
             return new ServiceOutcome<TResult>(service, null, true);
         }

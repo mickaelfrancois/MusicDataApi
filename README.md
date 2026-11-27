@@ -22,7 +22,8 @@ the repo root:
 dotnet user-secrets set "ApiKeySettings:Key"            "<x-api-key clients must send>" --project MusicDataApi
 dotnet user-secrets set "Services:LastFM:ApiKey"        "<your last.fm api key>"        --project MusicDataApi
 dotnet user-secrets set "Services:FanArt:ApiKey"        "<your fanart.tv api key>"      --project MusicDataApi
-dotnet user-secrets set "Telemetry:NEW_RELIC_INSERT_KEY" "<your new relic insert key>"  --project MusicDataApi
+dotnet user-secrets set "Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT" "<Rok.Telemetry base url>" --project MusicDataApi
+dotnet user-secrets set "Telemetry:RokKey"              "<Rok.Telemetry X-Rok-Key>"     --project MusicDataApi
 ```
 
 Secrets live under `%APPDATA%/Microsoft/UserSecrets/<UserSecretsId>/secrets.json`

@@ -89,9 +89,9 @@ LiteDB, single file at `ConnectionStrings:DefaultConnection` (e.g. `/data/databa
 
 ### Telemetry
 
-OpenTelemetry tracing + metrics, both using the source/meter name `"MusicDataApi"` (declared in `MusicData.Shared/Telemetry/Telemetry.cs`). OTLP HTTP/protobuf exporter is configured **only when `Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT` is set**; New Relic ingestion via `api-key` header from `Telemetry:NEW_RELIC_INSERT_KEY`. Endpoints suffix `/v1/traces` and `/v1/metrics` onto the base — keep that contract when changing the exporter.
+OpenTelemetry tracing + metrics, both using the source/meter name `"MusicDataApi"` (declared in `MusicData.Shared/Telemetry/Telemetry.cs`). **Only metrics are exported**: OTLP HTTP/protobuf to `{Telemetry:OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics`, configured only when that endpoint is set, authenticated by the `X-Rok-Key` header from `Telemetry:RokKey` (Rok.Telemetry receiver), with **Delta** temporality (it stores per-window deltas). Traces are produced but not exported.
 
-Two custom counters: `musicdata.requests` (entity × result, emitted by `CachedReadHandler`) and `musicdata.external_calls` (service × entity × result, emitted by `RateLimitedAggregator`). Endpoints also start a manual `Activity` named after the use case and tag it with the request parameters — replicate that pattern for any new endpoint so dashboards stay consistent.
+Custom instruments (names/tags are a contract with Rok.Telemetry): `musicdata.requests` (entity × result) and histogram `musicdata.request.duration` (ms, entity × result), both emitted by `CachedReadHandler`; `musicdata.external_calls` (service × entity × result × outcome ok/timeout/rate_limited/error, emitted by `RateLimitedAggregator`). Endpoints also start a manual `Activity` named after the use case and tag it with the request parameters — replicate that pattern for any new endpoint so dashboards stay consistent.
 
 ### Endpoints
 

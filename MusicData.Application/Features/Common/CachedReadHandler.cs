@@ -47,13 +47,21 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
         if (!IsValid(key))
             return null;
 
+        long start = Stopwatch.GetTimestamp();
+
         if (TryGetCached(key, out TDto? cached))
+        {
+            RecordDuration(start, "cache");
             return cached;
+        }
 
         using IDisposable _ = await _locker.LockAsync(MakeLockKey(key), cancellationToken);
 
         if (TryGetCached(key, out cached))
+        {
+            RecordDuration(start, "cache");
             return cached;
+        }
 
         TDto? fetched = await FetchAsync(key, cancellationToken);
         if (fetched is null)
@@ -61,6 +69,7 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
             _logger.LogInformation("{Entity} '{Key}' not found in any music service.", EntityKind, key);
             Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", "not_found" } });
             OnNotFound(key);
+            RecordDuration(start, "not_found");
             return null;
         }
 
@@ -74,9 +83,16 @@ public abstract class CachedReadHandler<TKey, TDto, TEntity>
         else
             _logger.LogInformation("{Entity} '{Key}' cached", EntityKind, key);
 
-        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", fetched.IsPartial ? "partial" : "external" } });
+        string result = fetched.IsPartial ? "partial" : "external";
+        Telemetry.Requests.Add(1, new TagList { { "entity", EntityKind }, { "result", result } });
+        RecordDuration(start, result);
         return fetched;
     }
+
+    private void RecordDuration(long start, string result) =>
+        Telemetry.RequestDuration.Record(
+            Stopwatch.GetElapsedTime(start).TotalMilliseconds,
+            new TagList { { "entity", EntityKind }, { "result", result } });
 
 
     private bool TryGetCached(TKey key, out TDto? dto)
